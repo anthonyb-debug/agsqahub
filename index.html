@@ -3526,6 +3526,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     render(); var m = $('#main'); if (m) m.scrollTop = 0;
   }
   window.addEventListener('hashchange', function () { if (!S.user) return; while (modalStack.length) closeModal(true); routeFromHash(); });
+  function closeAllModals() { while (modalStack.length) closeModal(true); }
   function go(page, id) { var h = '#/' + page + (id ? '/' + encodeURIComponent(id) : ''); if (location.hash === h) routeFromHash(); else location.hash = h; }
 
   // ================= small shared pieces =================

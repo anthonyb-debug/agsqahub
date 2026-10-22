@@ -3619,7 +3619,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     var head = '<div class="page-head"><div><p>' + (editing ? 'Correcting audit <b>' + esc(F.editId) + '</b>. The audit is re-scored with the scorecard version it was logged with, and your reason is kept in its history.' : 'Choose the scorecard and agent, answer every item, then log the audit. Your progress is kept as a draft in this browser until you log it.') + '</p></div>' +
       '<div class="actions">' + (editing ? '<button class="btn" data-act="cancelCorrection">Cancel correction</button>' : '') + '</div></div>' +
       (F.draftOffer ? '<div class="note warn" style="margin-bottom:12px">You have an unfinished audit from ' + esc(fmtTs(F.draftOffer.savedAt)) + ' in this browser (not logged). <button class="btn btn-sm" data-act="restoreQaDraft">Restore it</button> <button class="btn btn-sm btn-ghost" data-act="discardQaDraft">Discard</button></div>' : '') +
-      (F.lastLogged ? '<div class="note ok" style="margin-bottom:12px">Logged <b>' + esc(F.lastLogged.id) + '</b> for ' + esc(F.lastLogged.agent) + ': <b>' + esc(F.lastLogged.score) + '</b>. <button class="btn btn-sm" data-act="openAudit" data-id="' + esc(F.lastLogged.id) + '">Open it</button></div>' : '') +
+      (F.lastLogged ? '<div class="note ok" style="margin-bottom:12px">Logged <b>' + esc(F.lastLogged.id) + '</b> for ' + esc(F.lastLogged.agent) + ': <b>' + esc(F.lastLogged.score) + '</b>. <button class="btn btn-sm" data-act="openAudit" data-id="' + esc(F.lastLogged.id) + '">Open it</button> <button class="btn btn-sm" data-act="printAudit" data-id="' + esc(F.lastLogged.id) + '">Print</button></div>' : '') +
       '<div id="af-top"></div>';
     var cardsAvail = liveCards(S.g.campaignId).filter(function (c) { return C.b(c.Active) || c.ScorecardID === F.cardId; });
     var details = '<section class="panel" style="margin-bottom:12px"><div class="panel-b"><div class="fgrid three">' +
@@ -3700,7 +3700,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   function scoreButtons(ready) {
     var F = S.form;
     return '<div class="stack" style="gap:8px"><button class="btn btn-primary" id="af-submit" data-act="submitAudit">' + (F.editId ? 'Save correction' : 'Log audit') + '</button>' +
-      '<button class="btn" data-act="printForm">Print / save PDF</button>' + (F.editId ? '' : '<button class="btn btn-ghost" data-act="resetForm">Reset form</button>') +
+      (F.editId ? '' : '<button class="btn btn-ghost" data-act="resetForm">Reset form</button>') +
       (!ready && !F.noAudit ? '<div class="hint">Answer every item to log the audit.</div>' : '') + '</div>';
   }
   function saveQaDraftNow() { var F = S.form; if (!F || F.editId || !S.user || (!Object.keys(F.answers).length && !F.summary && !F.notes)) return; var c = Object.assign({}, F, { draftOffer: null, lastLogged: null }); lsSet(draftKey(), { savedAt: new Date().toISOString(), form: c }); }
@@ -3886,15 +3886,6 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   window.__AGS_auditCount = function () { return S.data.audits.filter(C.live).length; };   // tests
   window.__AGS_printAudit = function (id) { var a = auditById(id); return preparePrintAudit(a, cardOf(a.ScorecardID), C.auditItems(a, cardOf(a.ScorecardID)), false); };   // tests
   ACT.printAudit = function (el) { var a = auditById(el.dataset.id), card = cardOf(a.ScorecardID); preparePrintAudit(a, card, C.auditItems(a, card), false); doPrint(); };
-  ACT.printForm = function () {
-    var F = S.form, card = cardOf(F.cardId); if (!card) { toast('Choose a scorecard first.', 'warn'); return; }
-    var r = C.scoreAudit(formDef(F), card.Method, F.answers, card.PassMark), agent = ag(F.agentId);
-    var a = { AuditID: F.editId || '', AgentID: F.agentId, CampaignID: card.CampaignID, ScorecardName: card.Name, Method: card.Method, TeamLeadID: agent.TeamLeadID, AuditorName: S.user.displayName, AuditDate: F.auditDate,
-      InteractionID: F.interactionId, InteractionAt: F.interactionAt, Year: F.year, Month: F.month, Week: F.week, NoAudit: F.noAudit ? 'TRUE' : 'FALSE', NoAuditReason: F.noAuditReason,
-      Score: r.score, Band: r.band, Passed: r.passed ? 'TRUE' : 'FALSE', ZTP: r.ztp ? 'TRUE' : 'FALSE', Priority: F.priority, CallSummary: F.summary, CoachingNotes: F.notes };
-    var items = r.results.map(function (x) { return { code: x.code, title: x.title, answer: x.answer, type: x.type, weight: x.weight, earned: x.earned }; });
-    preparePrintAudit(a, card, items, !F.editId); doPrint();
-  };
 
   // ================= audits: list and weekly matrix =================
   var AUDIT_DEFAULTS = { tab: 'list', q: '', scorecardId: '', teamLeadId: '', agentId: '', auditor: '', week: '', band: '', sort: 'AuditDate', dir: -1, page: 0 };

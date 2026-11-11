@@ -596,8 +596,10 @@ var AGSCore = (function () {
   function splitIds(v) { return s(v).split(',').map(function (x) { return x.trim(); }).filter(Boolean); }
   function settingsWithDefaults(st) { var out = {}; Object.keys(DEFAULT_SETTINGS).forEach(function (k) { out[k] = DEFAULT_SETTINGS[k][0]; }); Object.keys(st || {}).forEach(function (k) { out[k] = s(st[k]); }); return out; }
   function normRole(r) { return r === 'OPS_MANAGER' ? 'ADMIN' : r; }
-  // Week of month as used by the QA team: days 1–7 = week 1, 8–14 = week 2, ... 29–31 = week 5.
-  function weekOfMonth(d) { return isIsoDate(d) ? Math.min(5, Math.ceil(+d.slice(8, 10) / 7)) : null; }
+  // Week of month as used by the QA team: days 1–7 = week 1, 8–14 = week 2, 15–21 = week 3, 22 to the end = week 4 (no week 5).
+  function weekOfMonth(d) { return isIsoDate(d) ? Math.min(4, Math.ceil(+d.slice(8, 10) / 7)) : null; }
+  // An audit's week; audits logged as week 5 before week 5 was removed count as week 4.
+  function wk(a) { var w = +(a && a.Week); return w > 4 ? 4 : w; }
   function periodOf(d) { return isIsoDate(d) ? { year: +d.slice(0, 4), month: +d.slice(5, 7), week: weekOfMonth(d) } : null; }
 
   // ------------------------------------------------------------------ fields
@@ -753,7 +755,7 @@ var AGSCore = (function () {
   // "Scored" audits exclude "No audit this week" entries.
   // ==================================================================
   function daysInMonth(y, m) { return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
-  function weeksInMonth(y, m) { return Math.ceil(daysInMonth(y, m) / 7); }
+  function weeksInMonth(y, m) { return 4; }
   function scored(a) { return !b(a.NoAudit) && n(a.Score) !== null; }
   function prevMonth(y, m) { return m === 1 ? { year: y - 1, month: 12 } : { year: y, month: m - 1 }; }
   function buildIndex(data) {
@@ -771,7 +773,7 @@ var AGSCore = (function () {
       if (f.auditor && s(a.AuditorEmail).toLowerCase() !== s(f.auditor).toLowerCase()) return false;
       if (f.year && +a.Year !== +f.year) return false;
       if (f.month && +a.Month !== +f.month) return false;
-      if (f.week && +a.Week !== +f.week) return false;
+      if (f.week && wk(a) !== +f.week) return false;
       if (f.band && a.Band !== f.band) return false;
       return true;
     };
@@ -814,7 +816,7 @@ var AGSCore = (function () {
     var rows = agentsInView(data, f, idx).map(function (ag) {
       var target = targetFor(ag, data, f), mine = monthAudits.filter(function (a) { return a.AgentID === ag.AgentID; }), weeks = [];
       for (var w = 1; w <= W; w++) {
-        var wa = mine.filter(function (a) { return +a.Week === w; }), sm = summarize(wa);
+        var wa = mine.filter(function (a) { return wk(a) === w; }), sm = summarize(wa);
         var state = w > lastWeek ? 'future' : (wa.length >= target && target > 0 ? 'met' : (wa.length ? 'partial' : 'missing'));
         if (sm.noAudit && !sm.audits && w <= lastWeek) state = 'excused';
         weeks.push({ week: w, count: wa.length, scored: sm.audits, avg: sm.avg, target: target, state: state, ids: wa.map(function (a) { return a.AuditID; }) });
@@ -837,7 +839,7 @@ var AGSCore = (function () {
     var top = Object.keys(byAgent).filter(function (k) { return byAgent[k].length >= 2; }).map(function (k) {
       var v = byAgent[k]; return { agentId: k, audits: v.length, avg: round(v.reduce(function (x, y) { return x + y; }, 0) / v.length, 1) };
     }).sort(function (x, y) { return y.avg - x.avg || y.audits - x.audits; }).slice(0, 5);
-    var trend = []; for (var w = 1; w <= mx.weeks; w++) { var ws = summarize(all.filter(function (a) { return +a.Week === w; })); trend.push({ week: w, audits: ws.audits, avg: ws.avg }); }
+    var trend = []; for (var w = 1; w <= mx.weeks; w++) { var ws = summarize(all.filter(function (a) { return wk(a) === w; })); trend.push({ week: w, audits: ws.audits, avg: ws.avg }); }
     var onTrack = mx.rows.filter(function (r) { return r.onTrack; }).length;
     return { kpis: { audits: sm.audits, avg: sm.avg, pass: sm.pass, ztp: sm.ztp, onTrack: rate(onTrack, mx.lastWeek ? mx.rows.length : 0), agents: mx.rows.length, noAudit: sm.noAudit },
       still: still, queue: queue, top: top, distribution: bandCounts(all), trend: trend, matrix: mx };
@@ -1002,7 +1004,8 @@ var AGSCore = (function () {
     if (!s(m.Year)) m.Year = a.Year = String(per.year); if (!s(m.Month)) m.Month = a.Month = String(per.month); if (!s(m.Week)) m.Week = a.Week = String(per.week);
     if (!(+m.Year >= 2000 && +m.Year <= 2100)) errors.Year = 'Enter a valid year.';
     if (!(+m.Month >= 1 && +m.Month <= 12 && +m.Month % 1 === 0)) errors.Month = 'Choose a month.';
-    if (!(+m.Week >= 1 && +m.Week <= 5 && +m.Week % 1 === 0)) errors.Week = 'Choose a week from 1 to 5.';
+    if (+m.Week === 5) m.Week = a.Week = '4';   // week 5 was removed: the 29th–31st belong to week 4
+    if (!(+m.Week >= 1 && +m.Week <= 4 && +m.Week % 1 === 0)) errors.Week = 'Choose a week from 1 to 4.';
     if (s(m.AuditNo) && !(+m.AuditNo >= 1 && +m.AuditNo <= 50 && +m.AuditNo % 1 === 0)) errors.AuditNo = 'Enter a whole number.';
     if (b(m.NoAudit) && s(m.NoAuditReason).length < 3) errors.NoAuditReason = 'Say why there is no audit this week.';
     if (cur && b(ctx.settings.CorrectionReasonRequired) && s(a.CorrectionNote).length < 5) errors.CorrectionNote = 'Give a reason for this correction (at least 5 characters).';
@@ -1036,7 +1039,7 @@ var AGSCore = (function () {
     }
     var target = n(card.WeeklyTarget) || 0;
     if (!selfId && target > 0 && !confirm.extra) {
-      var cnt = others.filter(function (x) { return x.AgentID === m.AgentID && x.ScorecardID === card.ScorecardID && +x.Year === +m.Year && +x.Month === +m.Month && +x.Week === +m.Week; }).length;
+      var cnt = others.filter(function (x) { return x.AgentID === m.AgentID && x.ScorecardID === card.ScorecardID && +x.Year === +m.Year && +x.Month === +m.Month && wk(x) === +m.Week; }).length;
       if (cnt >= target) throw AgsError('CONFIRM', 'This agent already has ' + cnt + ' of ' + target + ' required audits for week ' + m.Week + '. Log an extra audit?', { kind: 'extra', count: cnt, target: target });
     }
   }
@@ -1048,7 +1051,7 @@ var AGSCore = (function () {
     failIf(errors);
     confirmChecks(ctx, m, card, null, p.confirm);
     if (!s(m.AuditNo)) {
-      var cnt = ctx.list('audits', function (a) { return a.AgentID === m.AgentID && a.ScorecardID === card.ScorecardID && +a.Year === +m.Year && +a.Month === +m.Month && +a.Week === +m.Week; }).length;
+      var cnt = ctx.list('audits', function (a) { return a.AgentID === m.AgentID && a.ScorecardID === card.ScorecardID && +a.Year === +m.Year && +a.Month === +m.Month && wk(a) === +m.Week; }).length;
       m.AuditNo = String(cnt + 1);
     }
     var rec = Object.assign({}, m, scoredFields(m, r), { CampaignID: card.CampaignID, ScorecardName: card.Name, ScorecardVersion: card.Version, Method: card.Method,
@@ -2813,7 +2816,7 @@ var AGSCore = (function () {
       });
     });
     drafts.forEach(function (d) {
-      var dim = daysInMonth(d.mo.year, d.mo.month), lo = (d.w - 1) * 7 + 1, hi = Math.min(d.w * 7, dim);
+      var dim = daysInMonth(d.mo.year, d.mo.month), lo = (d.w - 1) * 7 + 1, hi = d.w === 4 ? dim : Math.min(d.w * 7, dim);
       var day = between(lo, hi), date = d.mo.year + '-' + ('0' + d.mo.month).slice(-2) + '-' + ('0' + day).slice(-2);
       if (date > today) date = today;
       d.date = date;
@@ -2850,7 +2853,7 @@ var AGSCore = (function () {
     DEFAULT_SETTINGS: DEFAULT_SETTINGS, FIELDS: FIELDS, STARTING_SCORECARDS: STARTING_SCORECARDS, INTERACTION_LABELS: INTERACTION_LABELS,
     startingScorecardRecord: startingScorecardRecord, AgsError: AgsError, s: s, n: n, b: b, isIsoDate: isIsoDate, addDays: addDays, diffDays: diffDays,
     json: json, arr: arr, rate: rate, fmtRate: fmtRate, round: round, clone: clone, isEmail: isEmail, live: live, blank: blank, byKey: byKey, splitIds: splitIds,
-    settingsWithDefaults: settingsWithDefaults, normRole: normRole, weekOfMonth: weekOfMonth, periodOf: periodOf, weeksInMonth: weeksInMonth, daysInMonth: daysInMonth,
+    settingsWithDefaults: settingsWithDefaults, normRole: normRole, weekOfMonth: weekOfMonth, wk: wk, periodOf: periodOf, weeksInMonth: weeksInMonth, daysInMonth: daysInMonth,
     sanitize: sanitize, defItems: defItems, validateDefinition: validateDefinition, scoreAudit: scoreAudit, bandFor: bandFor,
     isAdmin: isAdmin, isManager: isManager, isQA: isQA, isAgentUser: isAgentUser, canLogAudits: canLogAudits, canEditAudit: canEditAudit, capabilities: capabilities,
     buildScope: buildScope, inScope: inScope, auditFilter: auditFilter, summarize: summarize, bandCounts: bandCounts, weeklyMatrix: weeklyMatrix, dashboard: dashboard,
@@ -2932,7 +2935,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
 <script>
 
 /* =====================================================================
- * AGS COACHING HUB — APPLICATION
+ * AGS QA HUB — APPLICATION
  * ===================================================================== */
 (function () {
   'use strict';
@@ -3411,14 +3414,14 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
           }).join('') + '</div><div class="row" style="margin-top:10px"><span class="small muted">Demo data generated for ' + esc(fmtDate(S.demoT.state.generatedFor)) + '.</span><button class="btn btn-sm btn-ghost" data-act="demoResetLogin">Reset demo data</button></div></section>';
       } catch (e) { demoHtml = '<div class="note bad">The demo could not start: ' + esc(e.message) + '</div>'; }
     }
-    $('#app').innerHTML = '<div class="login"><section class="login-side"><div class="brand" style="border:0;padding:0"><div class="brand-mark" role="img" aria-label="Alliance Global Solutions logo"></div><div class="brand-name">Coaching Hub<small>Alliance Global Solutions</small></div></div>' +
+    $('#app').innerHTML = '<div class="login"><section class="login-side"><div class="brand" style="border:0;padding:0"><div class="brand-mark" role="img" aria-label="Alliance Global Solutions logo"></div><div class="brand-name">QA Hub<small>Alliance Global Solutions</small></div></div>' +
       '<div><h1>Call quality, audited the same way every time.</h1><p>One place for QA analysts to audit live calls and chats, and for team leads, managers and agents to see results they can act on.</p>' +
       '<ul><li>The Legacy, Banyan and Takahami scorecards, scored exactly as before</li><li>Weekly audit targets and coverage at a glance</li><li>Most-missed items, team trends and agent profiles</li></ul></div>' +
       '<p class="small" style="color:#8193AE">Access is limited to registered company Google accounts. Every change is audited.</p></section>' +
       '<main class="login-main" id="main"><section class="login-card" aria-labelledby="signin-h"><h2 id="signin-h">Sign in</h2>' +
       (err ? '<div class="note bad" role="alert" style="margin:10px 0">' + esc(err.message || String(err)) + '</div>' : '') +
       (live ? '<p class="muted small">Use your company Google account' + (CFG.ALLOWED_DOMAIN ? ' (@' + esc(CFG.ALLOWED_DOMAIN) + ')' : '') + '.</p><div id="gis-btn" style="margin-top:12px;min-height:44px"><span class="spinner"></span>Loading Google sign-in…</div>'
-        : '<div class="note warn" style="margin-top:10px">The live backend is not configured in this copy of the app. Missing: <strong>' + esc(missing.join(', ')) + '</strong>. An administrator sets these in the <code>AGS_CONFIG</code> block at the top of AGS_Coaching_Hub.html (see DEPLOYMENT.md).</div>') +
+        : '<div class="note warn" style="margin-top:10px">The live backend is not configured in this copy of the app. Missing: <strong>' + esc(missing.join(', ')) + '</strong>. An administrator sets these in the <code>AGS_CONFIG</code> block at the top of index.html (see DEPLOYMENT.md).</div>') +
       '</section>' + demoHtml + '</main></div>';
     if (live) {
       Auth.load().then(function () { var el = $('#gis-btn'); if (!el) return; el.innerHTML = ''; Auth.button(el); if (!err) { try { google.accounts.id.prompt(); } catch (e) { } } },
@@ -3599,6 +3602,8 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     secs.forEach(function (sc) { sc.ztp = sc.items.every(function (x) { return x.type === 'ZTP'; }); var match = (cdef.sections || []).filter(function (c) { return c.title === sc.title; })[0]; if (match) sc.items.forEach(function (x) { var m = (match.items || []).filter(function (y) { return y.code === x.code; })[0]; if (m && m.group) x.group = m.group; }); });
     return { sections: secs };
   }
+  // Logging or resetting keeps the scorecard, agent and audit date, so the same agent can be audited again right away.
+  function keptForm(F, extra) { return Object.assign(blankForm(F.cardId), { mode: S.mode, agentId: F.agentId, auditDate: F.auditDate, year: F.year, month: F.month, week: F.week, periodTouched: F.periodTouched }, extra || {}); }
   function blankForm(cardId) {
     var p = C.periodOf(S.today);
     return { cardId: cardId || '', agentId: '', interactionId: '', interactionAt: '', auditDate: S.today, year: p.year, month: p.month, week: p.week, periodTouched: false,
@@ -3631,9 +3636,10 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       fieldIn('AuditNo', 'Audit no.', 'number', F.auditNo, 'auditNo', 'min="1" max="50" placeholder="Automatic"') +
       fieldSel('Year', 'Year', yearOptsFor(F.year), true, '', 'afField', 'year') +
       fieldSel('Month', 'Month', opts(MONTH_NAMES.map(function (m, i) { return [i + 1, m]; }), F.month), true, '', 'afField', 'month') +
-      fieldSel('Week', 'Week', opts([1, 2, 3, 4, 5].map(function (w) { return [w, 'Week ' + w]; }), F.week), true, '', 'afField', 'week') +
+      fieldSel('Week', 'Week', opts([1, 2, 3, 4].map(function (w) { return [w, 'Week ' + w]; }), F.week), true, '', 'afField', 'week') +
       '</div><div style="margin-top:10px"><label class="check"><input type="checkbox" data-change="afNoAudit"' + (F.noAudit ? ' checked' : '') + '> No audit this week for this agent</label>' +
       '<div id="w-noaudit"' + (F.noAudit ? '' : ' hidden') + ' style="margin-top:8px">' + fieldIn('NoAuditReason', 'Reason', 'text', F.noAuditReason, 'noAuditReason', 'maxlength="500" placeholder="For example: on leave, no eligible calls"') + '</div></div>' +
+      '<div style="margin-top:12px">' + fieldTa('CallSummary', 'Call summary', F.summary, 'summary') + '</div>' +
       (editing ? '<div style="margin-top:12px">' + fieldIn('CorrectionNote', 'Reason for this correction', 'text', F.correction, 'correction', 'maxlength="1000"', true) + '</div>' : '') +
       '</div></section>';
     var body = '';
@@ -3644,7 +3650,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
         '<button class="chip" data-act="afAllOpen">Expand all</button></div><div id="ztp-banner"></div>' +
         def.sections.map(function (sc, i) { return sectionHtml(sc, i, card, F); }).join('') +
         '<section class="panel" style="margin-top:12px"><div class="panel-h"><h2>Remarks</h2></div><div class="panel-b"><div class="fgrid">' +
-        fieldTa('CallSummary', 'Call summary', F.summary, 'summary', 'span2') + fieldSel('Priority', 'Priority level', opts(C.PRIORITIES, F.priority, 'Select'), false, '', 'afField', 'priority') +
+        fieldSel('Priority', 'Priority level', opts(C.PRIORITIES, F.priority, 'Select'), false, '', 'afField', 'priority') +
         '<div></div>' + fieldTa('CoachingNotes', 'Coaching notes', F.notes, 'notes', 'span2') + '</div></div></section>';
     }
     var panel = '<aside class="panel score-panel"><div class="panel-b" id="score-panel"></div></aside>';
@@ -3730,7 +3736,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   CHG.afNoAudit = function (el) { S.form.noAudit = el.checked; render(); saveQaDraft(); };
   ACT.restoreQaDraft = function () { var dr = S.form.draftOffer; S.form = Object.assign(blankForm(), dr.form, { draftOffer: null, mode: S.mode, editId: '' }); render(); toast('Draft restored. It is not logged until you click Log audit.', 'warn'); };
   ACT.discardQaDraft = function () { lsDel(draftKey()); S.form.draftOffer = null; render(); };
-  ACT.resetForm = function () { confirmDialog({ title: 'Reset this audit?', message: 'All answers and remarks on this form will be cleared.', ok: 'Reset', danger: true }).then(function (r) { if (!r) return; var cid = S.form.cardId; lsDel(draftKey()); S.form = Object.assign(blankForm(cid), { mode: S.mode }); render(); }); };
+  ACT.resetForm = function () { confirmDialog({ title: 'Reset this audit?', message: 'All answers and remarks on this form will be cleared. The scorecard, agent and audit date stay.', ok: 'Reset', danger: true }).then(function (r) { if (!r) return; lsDel(draftKey()); S.form = keptForm(S.form); render(); }); };
   ACT.cancelCorrection = function () { S.form = null; go('audits'); };
 
   function payloadFromForm(F) {
@@ -3768,7 +3774,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       var id = res.primary && res.primary.id, a = auditById(id), name = agName(F.agentId), score = a && !C.b(a.NoAudit) ? a.Score + '% (' + a.Band + ')' : 'no audit this week';
       lsDel(draftKey());
       if (F.editId) { S.form = null; toast('Correction saved for ' + id + ': ' + score + '.', 'ok'); go('audits'); setTimeout(function () { openAudit(id); }, 50); return; }
-      var cid = F.cardId; S.form = Object.assign(blankForm(cid), { mode: S.mode, lastLogged: { id: id, agent: name, score: score } });
+      S.form = keptForm(F, { lastLogged: { id: id, agent: name, score: score } });
       toast('Audit ' + id + ' logged for ' + name + ': ' + score + '.', 'ok'); render(); $('#main').scrollTop = 0;
     }, function (e) {
       busy(btn, false);
@@ -3778,7 +3784,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
         });
         return;
       }
-      if (e && e.queued) { lsDel(draftKey()); S.form = Object.assign(blankForm(F.cardId), { mode: S.mode }); render(); writeError(e); return; }
+      if (e && e.queued) { lsDel(draftKey()); S.form = keptForm(F); render(); writeError(e); return; }
       if (e && e.code === 'VALIDATION' && e.details && e.details.fields) { showAuditErrors(e.details.fields); return; }
       if (e && e.code === 'CONFLICT') { conflictDialog(e); return; }
       $('#af-top').innerHTML = '<div class="note bad" role="alert" style="margin-bottom:12px">' + esc(e && e.message ? e.message : 'The audit was not saved.') + '</div>';
@@ -3801,7 +3807,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     var meta = '<dl class="dl">' + dd('Agent', isAgentRole() ? esc(agName(a.AgentID)) : '<a href="#/agents/' + esc(a.AgentID) + '" data-act="goAgent" data-id="' + esc(a.AgentID) + '">' + esc(agName(a.AgentID)) + '</a>') + dd('Campaign', esc(campName(a.CampaignID))) +
       dd('Scorecard', esc((a.ScorecardName || (card || {}).Name || '') + (a.ScorecardVersion ? ' (version ' + a.ScorecardVersion + ')' : ''))) + dd('Team lead', esc(tlName(a.TeamLeadID))) + dd('QA analyst', esc(auditorLabel(a))) +
       dd((card && card.InteractionLabel) || 'Interaction ID', esc(a.InteractionID)) + dd('Interaction date and time', esc(String(a.InteractionAt || '').replace('T', ' '))) + dd('Audit date', esc(fmtDate(a.AuditDate))) +
-      dd('Period', esc('Week ' + a.Week + ', ' + MONTH_NAMES[(+a.Month || 1) - 1] + ' ' + a.Year)) + dd('Audit no.', esc(a.AuditNo)) + (a.Source === 'IMPORT' ? dd('Source', 'Imported from the original QA Portal') : '') + '</dl>';
+      dd('Period', esc('Week ' + C.wk(a) + ', ' + MONTH_NAMES[(+a.Month || 1) - 1] + ' ' + a.Year)) + dd('Audit no.', esc(a.AuditNo)) + (a.Source === 'IMPORT' ? dd('Source', 'Imported from the original QA Portal') : '') + dd('Call summary', txt(a.CallSummary), true) + '</dl>';
     var body = '<div class="row" style="margin-bottom:12px">' + (C.b(a.NoAudit) ? sb('No audit') : '<span class="score-big band-pill ' + ((C.bandFor(a.Score, C.b(a.ZTP)) || {}).key || '') + '" style="font-size:1.8rem">' + esc(a.Score) + '%</span>' + sb(a.Band) + sb(C.b(a.Passed) ? 'Passed' : 'Failed')) + synTag(a) + '</div>' + meta;
     if (C.b(a.NoAudit)) body += '<div class="sec"><h3>No audit this week</h3><p>' + esc(a.NoAuditReason) + '</p></div>';
     else if (!items.length) body += '<div class="sec"><div class="note">Item answers are not available for this audit' + (a.Source === 'IMPORT' ? ' (the original QA Portal did not keep them for this entry)' : '') + '. The score is shown as logged.</div></div>';
@@ -3811,7 +3817,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
         items.map(function (x) { var ans = x.answer === 'Y' ? (x.type === 'ZTP' ? 'Clear' : 'Yes') : x.answer === 'N' ? (x.type === 'ZTP' ? 'Violated' : 'No') : x.answer === 'NA' ? 'N/A' : '—';
           return '<tr' + (x.answer === 'N' ? ' style="background:var(--bad-soft)"' : '') + '><td>' + esc(x.code) + '</td><td>' + esc(x.title) + '</td><td class="t-sub">' + esc(x.section) + '</td><td>' + (x.type ? esc(x.type) : C.n(x.weight).toFixed(1)) + '</td><td>' + ans + '</td><td class="num">' + (a.Method === 'WEIGHTED' ? (x.earned === null ? '—' : x.earned.toFixed(1)) : (x.deduction === 'AUTO-FAIL' ? 'Auto-fail' : x.deduction ? '−' + x.deduction : '0')) + '</td></tr>'; }).join('') + '</tbody></table></div></details></div>';
     }
-    body += '<div class="sec"><h3>Remarks</h3><dl class="dl">' + dd('Priority level', txt(a.Priority)) + dd('Call summary', txt(a.CallSummary), true) + dd('Coaching notes', txt(a.CoachingNotes), true) + (a.CorrectionNote ? dd('Last correction reason', txt(a.CorrectionNote), true) : '') + '</dl></div>';
+    body += '<div class="sec"><h3>Remarks</h3><dl class="dl">' + dd('Priority level', txt(a.Priority)) + dd('Coaching notes', txt(a.CoachingNotes), true) + (a.CorrectionNote ? dd('Last correction reason', txt(a.CorrectionNote), true) : '') + '</dl></div>';
     if (!isAgentRole()) body += '<div class="sec"><div class="row"><h3 style="margin-right:auto">Change history</h3><button class="btn btn-sm" data-act="loadHistory" data-id="' + esc(id) + '">Load change history</button></div><div id="hist-' + esc(id) + '"></div></div>';
     var foot = '<span class="left">Logged by ' + esc(a.CreatedBy === 'import' ? 'import' : auditorLabel(a)) + ' on ' + esc(fmtTs(a.CreatedAt)) + '. Version ' + esc(a.RecordVersion) + '.</span>' +
       (isAdmin() ? '<button class="btn btn-danger" data-act="archiveAudit" data-id="' + esc(id) + '">Archive</button>' : '') +
@@ -3864,12 +3870,12 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       return '<tr' + (x.answer === 'N' ? ' style="font-weight:600"' : '') + '><td>' + esc(x.code) + '</td><td>' + esc(x.title) + '</td><td>' + ans + '</td><td style="text-align:right">' + pts + '</td></tr>'; }).join('') + '</tbody></table>'; };
     return '<div class="pf"><div class="pf-head">' + (logo ? '<img src="' + logo + '" alt="">' : '') + '<div><h1>QA Audit' + (draft ? '<span class="pf-draft">NOT LOGGED</span>' : '') + '</h1><div class="pf-org">Alliance Global Solutions</div></div><div class="pf-meta"><b>' + esc(a.AuditID || 'Draft') + '</b><br>Printed ' + esc(fmtDate(todayTz())) + '</div></div>' +
       '<div class="pf-grid">' + f('Agent', agName(a.AgentID) + (ag(a.AgentID).EmployeeID ? ' (' + ag(a.AgentID).EmployeeID + ')' : '')) + f('Campaign', campName(a.CampaignID)) + f('Scorecard', a.ScorecardName || (card || {}).Name) +
-      f('Team lead', tlName(a.TeamLeadID)) + f('QA analyst', auditorLabel(a)) + f('Audit date', fmtDate(a.AuditDate)) + f((card && card.InteractionLabel) || 'Interaction ID', a.InteractionID) + f('Interaction date and time', String(a.InteractionAt || '').replace('T', ' ')) + f('Period', 'Week ' + a.Week + ', ' + MONTH_NAMES[(+a.Month || 1) - 1] + ' ' + a.Year) + '</div>' +
+      f('Team lead', tlName(a.TeamLeadID)) + f('QA analyst', auditorLabel(a)) + f('Audit date', fmtDate(a.AuditDate)) + f((card && card.InteractionLabel) || 'Interaction ID', a.InteractionID) + f('Interaction date and time', String(a.InteractionAt || '').replace('T', ' ')) + f('Period', 'Week ' + C.wk(a) + ', ' + MONTH_NAMES[(+a.Month || 1) - 1] + ' ' + a.Year) + f('Call summary', a.CallSummary, 'pf-wide') + '</div>' +
       (C.b(a.NoAudit) ? '<h2>No audit this week</h2><div>' + esc(a.NoAuditReason) + '</div>' :
         '<h2>Result</h2><div class="pf-grid">' + f('QA score', a.Score + '%') + f('Performance', a.Band) + f('Outcome', C.b(a.Passed) ? 'Passed (pass mark ' + ((card && card.PassMark) || 87) + '%)' : 'Failed' + (C.b(a.ZTP) ? ': zero-tolerance violation' : '')) + '</div>' +
         '<h2>Missed items (' + missed.length + ')</h2><div>' + (missed.length ? missed.map(function (x) { return esc(x.code + ' ' + x.title); }).join('; ') : 'None') + '</div>' +
         (items.length ? '<h2>All items</h2><div class="pf-grid two">' + cols.map(function (c) { return '<div>' + itemTable(c) + '</div>'; }).join('') + '</div>' : '')) +
-      '<h2>Remarks</h2><div class="pf-grid two">' + f('Priority level', a.Priority) + '<div></div>' + f('Call summary', a.CallSummary, 'pf-wide') + f('Coaching notes', a.CoachingNotes, 'pf-wide') + '</div>' +
+      '<h2>Remarks</h2><div class="pf-grid two">' + f('Priority level', a.Priority) + '<div></div>' + f('Coaching notes', a.CoachingNotes, 'pf-wide') + '</div>' +
       '<div class="pf-sign">' + [['Agent', agName(a.AgentID)], ['QA analyst', auditorLabel(a)]].map(function (p) { return '<div><div class="row"><div><div class="line"></div><div class="lbl">' + esc(p[0]) + ' signature</div></div><div><div class="line"></div><div class="lbl">Date</div></div></div><div style="margin-top:4px;font-size:9pt">' + esc(p[1]) + '</div></div>'; }).join('') + '</div>' +
       '<div class="pf-foot"><span>Confidential — employee performance record</span><span>AGS QA Hub' + (a.AuditID ? ', ' + esc(a.AuditID) : '') + '</span></div></div>';
   }
@@ -3902,7 +3908,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     var filters = '<div class="filters">' + ftext('audits', 'q', 'Search', f.q, agentView ? 'QA-… or ID' : 'Agent, QA-…, interaction ID') +
       fsel('audits', 'scorecardId', 'Scorecard', cardOpts(f.scorecardId, 'All', S.g.campaignId)) +
       (agentView ? '' : fsel('audits', 'teamLeadId', 'Team lead', tlOpts(f.teamLeadId, 'All', S.g.campaignId)) + fsel('audits', 'agentId', 'Agent', agentOpts(S.g.campaignId, f.agentId, 'All')) + fsel('audits', 'auditor', 'QA analyst', auditorOpts(f.auditor))) +
-      fsel('audits', 'week', 'Week', opts([1, 2, 3, 4, 5].map(function (w) { return [w, 'Week ' + w]; }), f.week, 'All weeks')) +
+      fsel('audits', 'week', 'Week', opts([1, 2, 3, 4].map(function (w) { return [w, 'Week ' + w]; }), f.week, 'All weeks')) +
       fsel('audits', 'band', 'Result', opts(C.BANDS.map(function (b2) { return b2.label; }).concat([C.ZTP_BAND.label]), f.band, 'All results')) + '</div>';
     var table = rows.length ? '<div class="table-wrap"><table class="t"><thead><tr>' + sortTh('audits', 'AuditDate', 'Date / ID', f) + (agentView ? '' : sortTh('audits', 'agent', 'Agent', f)) + sortTh('audits', 'card', 'Scorecard', f) +
       sortTh('audits', 'week', 'Week', f) + sortTh('audits', 'score', 'Score', f) + sortTh('audits', 'auditor', 'QA analyst', f) + '<th>Interaction</th></tr></thead><tbody>' +
@@ -3994,13 +4000,13 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       var headers = ['Scorecard', 'Audits', 'Average score', 'Pass rate', 'ZTP violations', 'No-audit entries'];
       var rows = Object.keys(cards).sort().map(function (k) { var x = C.summarize(cards[k]); return [k, x.audits, fmtPct(x.avg), C.fmtRate(x.pass), x.ztp, x.noAudit]; });
       return { html: '<div class="stats" style="margin-bottom:16px"><div><b>' + sm.audits + '</b><span>Scored audits</span></div><div><b>' + fmtPct(sm.avg) + '</b><span>Average score</span></div><div><b>' + C.fmtRate(sm.pass) + '</b><span>Pass rate</span></div><div><b>' + sm.ztp + '</b><span>ZTP violations</span></div><div><b>' + sm.noAudit + '</b><span>No-audit entries</span></div></div>' +
-        '<div class="grid g-2"><section class="panel"><div class="panel-h"><h2>By scorecard</h2></div>' + tbl(headers, rows, [1, 2, 3, 4, 5]) + '</section><section class="panel"><div class="panel-h"><h2>Score distribution</h2></div><div class="panel-b">' + hbars(Object.keys(r.distribution).map(function (k) { return { key: k, label: k, value: r.distribution[k] }; }), 'bandDrill') + '</div></section></div>',
+        '<div class="grid g-2"><section class="panel"><div class="panel-h"><h2>By scorecard</h2></div>' + tbl(headers, rows, [1, 2, 3, 4]) + '</section><section class="panel"><div class="panel-h"><h2>Score distribution</h2></div><div class="panel-b">' + hbars(Object.keys(r.distribution).map(function (k) { return { key: k, label: k, value: r.distribution[k] }; }), 'bandDrill') + '</div></section></div>',
         csv: { name: 'qa_overview', headers: headers, rows: rows } };
     },
     team: function (filt) {
       var list = C.reportTeams(S.data, filt), headers = ['Team lead', 'Audits', 'Average score', 'Pass rate', 'ZTP violations', 'No-audit entries'];
       var rows = list.map(function (x) { return [x.label, x.audits, fmtPct(x.avg), C.fmtRate(x.pass), x.ztp, x.noAudit]; });
-      return { html: '<section class="panel">' + tbl(headers, rows, [1, 2, 3, 4, 5]) + '</section>', csv: { name: 'qa_team_performance', headers: headers, rows: rows } };
+      return { html: '<section class="panel">' + tbl(headers, rows, [1, 2, 3, 4]) + '</section>', csv: { name: 'qa_team_performance', headers: headers, rows: rows } };
     },
     trends: function (filt) {
       var f2 = Object.assign({}, filt, { year: '', month: '' }), r = C.reportOverview(S.data, f2, S.today), headers = ['Month', 'Audits', 'Average score', 'Pass rate', 'ZTP violations'];
@@ -4011,7 +4017,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     auditor: function (filt) {
       var list = C.reportAuditors(S.data, filt), headers = ['QA analyst', 'Audits', 'Average score given', 'Pass rate', 'ZTP violations found', 'No-audit entries'];
       var rows = list.map(function (x) { return [x.label, x.audits, fmtPct(x.avg), C.fmtRate(x.pass), x.ztp, x.noAudit]; });
-      return { html: '<div class="note" style="margin-bottom:12px">Large differences in average score between analysts auditing the same campaign can point to a calibration need. They are a prompt to compare notes, not a judgment of either analyst.</div><section class="panel">' + tbl(headers, rows, [1, 2, 3, 4, 5]) + '</section>', csv: { name: 'qa_auditor_activity', headers: headers, rows: rows } };
+      return { html: '<div class="note" style="margin-bottom:12px">Large differences in average score between analysts auditing the same campaign can point to a calibration need. They are a prompt to compare notes, not a judgment of either analyst.</div><section class="panel">' + tbl(headers, rows, [1, 2, 3, 4]) + '</section>', csv: { name: 'qa_auditor_activity', headers: headers, rows: rows } };
     },
     missed: function (filt) {
       var list = C.reportMissed(S.data, filt), headers = ['Scorecard', '#', 'Item', 'Section', 'Type / weight', 'Missed', 'Scored', 'Miss rate', 'Agents affected'];

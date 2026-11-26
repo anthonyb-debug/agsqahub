@@ -3749,10 +3749,10 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       (F.lastLogged ? '<div class="note ok" style="margin-bottom:12px">Logged <b>' + esc(F.lastLogged.id) + '</b> for ' + esc(F.lastLogged.agent) + ': <b>' + esc(F.lastLogged.score) + '</b>. <button class="btn btn-sm" data-act="openAudit" data-id="' + esc(F.lastLogged.id) + '">Open it</button> <button class="btn btn-sm" data-act="printAudit" data-id="' + esc(F.lastLogged.id) + '">Print</button></div>' : '') +
       '<div id="af-top"></div>';
     var cardsAvail = liveCards(S.g.campaignId).filter(function (c) { return (C.b(c.Active) && (F.purpose === 'training') === C.isTraining(c)) || c.ScorecardID === F.cardId; });   // one kind per form: QA audits or trainee scorecards
-    var trc = !!(card && C.isTraining(card));   // trainee scorecards: no audit date, audit no., week, reference or call summary
+    var trc = F.purpose === 'training' || !!(card && C.isTraining(card));   /* the trainee layout from the start, before a scorecard is chosen */   // trainee scorecards: no audit date, audit no., week, reference or call summary
     var details = '<section class="panel" style="margin-bottom:12px"><div class="panel-b"><div class="fgrid three">' +
       fieldSel('ScorecardID', 'Scorecard', opts(cardsAvail.map(function (c) { return [c.ScorecardID, c.Name + ' — ' + campName(c.CampaignID) + (C.isTraining(c) ? ' (trainee)' : '')]; }), F.cardId, 'Select scorecard'), true, editing ? ' disabled' : '', 'afCard') +
-      fieldSel('AgentID', 'Agent', card ? agentOpts(card.CampaignID, F.agentId, 'Select agent', true) : '<option value="">Choose a scorecard first</option>', true, '', 'afField', 'agentId') +
+      fieldSel('AgentID', trc ? 'Trainee' : 'Agent', card ? agentOpts(card.CampaignID, F.agentId, 'Select agent', true) : '<option value="">Choose a scorecard first</option>', true, '', 'afField', 'agentId') +
       (trc ? '' : fieldIn('InteractionID', card ? (card.InteractionLabel || 'Interaction ID') : 'Interaction ID', 'text', F.interactionId, 'interactionId', 'maxlength="120"')) +
       fieldIn('InteractionAt', 'Interaction date and time', 'datetime-local', F.interactionAt, 'interactionAt') +
       (trc ? '' : fieldIn('AuditDate', 'Audit date', 'date', F.auditDate, 'auditDate', 'max="' + esc(S.today) + '"')) +
@@ -3767,7 +3767,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       '<div id="w-callout"' + (F.callout ? '' : ' hidden') + ' style="margin-top:8px">' + fieldIn('CalloutReason', 'Reason for the callout', 'text', F.calloutReason, 'calloutReason', 'maxlength="500" placeholder="For example: escalation documented for coaching"', true) + '</div><div class="err" id="e-Callout" hidden></div></div><!--/qa-->' +
       (editing ? '<div style="margin-top:12px">' + fieldIn('CorrectionNote', 'Reason for this correction', 'text', F.correction, 'correction', 'maxlength="1000"', true) + '</div>' : '') +
       '</div></section>';
-    if (card && C.isTraining(card)) {   // trainee scorecard: review period and hire date instead of "no audit" and callouts
+    if (trc) {   // trainee scorecard: review period and hire date instead of "no audit" and callouts
       var tag = ag(F.agentId) || {};
       details = details.replace(/<!--qa-->[\s\S]*?<!--\/qa-->/g, '').replace('<!--train-->', '<div class="note" style="margin-top:12px"><b>Trainee scorecard.</b> Rate each item 1–5 (pass/fail items: 5 or 0); each earns rating ÷ 5 × its weight. Kept in the Training section, never in QA scores.</div>' +
         '<div class="fgrid three" style="margin-top:10px">' + fieldSel('TrainingWeek', 'Review period', opts([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(function (w) { return [w, 'Training week ' + w]; }), F.trainingWeek, 'Select'), true, '', 'afField', 'trainingWeek') +

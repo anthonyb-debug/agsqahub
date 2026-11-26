@@ -3579,7 +3579,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   document.addEventListener('input', function (e) { var el = e.target.closest('[data-input]'); if (el && INP[el.dataset.input]) INP[el.dataset.input](el, e); });
 
   ACT.closeModal = function () { closeModal(); };
-  ACT.nav = function (el) { go(el.dataset.page); };
+  ACT.nav = function (el) { if (el.dataset.page === 'newaudit' && S.form && S.form.purpose === 'training' && !S.form.editId) S.form = null; /* New audit always opens a QA audit */ go(el.dataset.page); };
   ACT.openNav = function () { $('#shell').classList.add('nav-open'); var b = $('#nav button'); if (b) b.focus(); };
   ACT.toggleNav = function () { if (window.innerWidth <= 900) { $('#shell').classList.remove('nav-open'); return; } S.navCollapsed = !S.navCollapsed; lsSet('ags_nav_collapsed', S.navCollapsed); $('#shell').classList.toggle('collapsed', S.navCollapsed); };
   ACT.demoLogin = function (el) { S.demoEmail = el.dataset.email; startServer('demo'); };
@@ -3725,7 +3725,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     return { sections: secs };
   }
   // Logging or resetting keeps the scorecard, agent and audit date, so the same agent can be audited again right away.
-  function keptForm(F, extra) { return Object.assign(blankForm(F.cardId), { mode: S.mode, agentId: F.agentId, auditDate: F.auditDate, year: F.year, month: F.month, week: F.week, periodTouched: F.periodTouched }, extra || {}); }
+  function keptForm(F, extra) { return Object.assign(blankForm(F.cardId), { mode: S.mode, purpose: F.purpose || 'qa', agentId: F.agentId, auditDate: F.auditDate, year: F.year, month: F.month, week: F.week, periodTouched: F.periodTouched }, extra || {}); }
   function blankForm(cardId) {
     var p = C.periodOf(S.today);
     return { cardId: cardId || '', agentId: '', interactionId: '', interactionAt: '', auditDate: S.today, year: p.year, month: p.month, week: p.week, periodTouched: false,
@@ -3736,19 +3736,19 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
 
   PAGES.newaudit = function () {
     if (!S.form || (!S.form.editId && S.form.mode !== S.mode)) {
-      var cards = liveCards(S.g.campaignId).filter(function (c) { return C.b(c.Active); });
+      var cards = liveCards(S.g.campaignId).filter(function (c) { return C.b(c.Active) && !C.isTraining(c); });   // New audit: production (QA) scorecards only
       S.form = blankForm(cards.length === 1 ? cards[0].ScorecardID : ''); S.form.mode = S.mode;
       var dr = lsGet(draftKey(), null);
-      if (dr && dr.form && Object.keys(dr.form.answers || {}).length) S.form.draftOffer = dr;
+      if (dr && dr.form && Object.keys(dr.form.answers || {}).length && (dr.form.purpose || 'qa') === 'qa') S.form.draftOffer = dr;
     }
-    if (S.prefillAgent) { var ag0 = ag(S.prefillAgent), cs = liveCards(ag0.CampaignID).filter(function (c) { return C.b(c.Active); }); if (cs.length && !S.form.editId) { if (S.form.cardId && cardOf(S.form.cardId).CampaignID !== ag0.CampaignID || !S.form.cardId) S.form.cardId = cs[0].ScorecardID; S.form.agentId = S.prefillAgent; } S.prefillAgent = null; }
+    if (S.prefillAgent) { var ag0 = ag(S.prefillAgent), cs = liveCards(ag0.CampaignID).filter(function (c) { return C.b(c.Active) && !C.isTraining(c); }); if (cs.length && !S.form.editId) { if (S.form.cardId && cardOf(S.form.cardId).CampaignID !== ag0.CampaignID || !S.form.cardId) S.form.cardId = cs[0].ScorecardID; S.form.agentId = S.prefillAgent; } S.prefillAgent = null; }
     var F = S.form, card = cardOf(F.cardId), def = formDef(F), editing = !!F.editId, a0 = editing ? auditById(F.editId) : null;
-    var head = '<div class="page-head"><div><p>' + (editing ? 'Correcting audit <b>' + esc(F.editId) + '</b>. The audit is re-scored with the scorecard version it was logged with, and your reason is kept in its history.' : 'Choose the scorecard and agent, answer every item, then log the audit. Your progress is kept as a draft in this browser until you log it.') + '</p></div>' +
+    var head = '<div class="page-head"><div><p>' + (editing ? 'Correcting audit <b>' + esc(F.editId) + '</b>. The audit is re-scored with the scorecard version it was logged with, and your reason is kept in its history.' : '' + (F.purpose === 'training' ? 'Choose the trainee scorecard (Teach Back or Mock Call), the trainee and the review period, rate every item, then log it.' : 'Choose the scorecard and agent, answer every item, then log the audit.') + ' Your progress is kept as a draft in this browser until you log it.') + '</p></div>' +
       '<div class="actions">' + (editing ? '<button class="btn" data-act="cancelCorrection">Cancel correction</button>' : '') + '</div></div>' +
       (F.draftOffer ? '<div class="note warn" style="margin-bottom:12px">You have an unfinished audit from ' + esc(fmtTs(F.draftOffer.savedAt)) + ' in this browser (not logged). <button class="btn btn-sm" data-act="restoreQaDraft">Restore it</button> <button class="btn btn-sm btn-ghost" data-act="discardQaDraft">Discard</button></div>' : '') +
       (F.lastLogged ? '<div class="note ok" style="margin-bottom:12px">Logged <b>' + esc(F.lastLogged.id) + '</b> for ' + esc(F.lastLogged.agent) + ': <b>' + esc(F.lastLogged.score) + '</b>. <button class="btn btn-sm" data-act="openAudit" data-id="' + esc(F.lastLogged.id) + '">Open it</button> <button class="btn btn-sm" data-act="printAudit" data-id="' + esc(F.lastLogged.id) + '">Print</button></div>' : '') +
       '<div id="af-top"></div>';
-    var cardsAvail = liveCards(S.g.campaignId).filter(function (c) { return C.b(c.Active) || c.ScorecardID === F.cardId; });
+    var cardsAvail = liveCards(S.g.campaignId).filter(function (c) { return (C.b(c.Active) && (F.purpose === 'training') === C.isTraining(c)) || c.ScorecardID === F.cardId; });   // one kind per form: QA audits or trainee scorecards
     var details = '<section class="panel" style="margin-bottom:12px"><div class="panel-b"><div class="fgrid three">' +
       fieldSel('ScorecardID', 'Scorecard', opts(cardsAvail.map(function (c) { return [c.ScorecardID, c.Name + ' — ' + campName(c.CampaignID) + (C.isTraining(c) ? ' (trainee)' : '')]; }), F.cardId, 'Select scorecard'), true, editing ? ' disabled' : '', 'afCard') +
       fieldSel('AgentID', 'Agent', card ? agentOpts(card.CampaignID, F.agentId, 'Select agent', true) : '<option value="">Choose a scorecard first</option>', true, '', 'afField', 'agentId') +
@@ -3784,7 +3784,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
         '<div></div>' + fieldTa('CoachingNotes', 'Coaching notes', F.notes, 'notes', 'span2') + (C.isTraining(card) ? fieldTa('Commitment', 'Agent\'s commitment', F.commitment, 'commitment', 'span2') : '') + '</div></div></section>';
     }
     var panel = '<aside class="panel score-panel"><div class="panel-b" id="score-panel"></div></aside>';
-    return { html: head + '<div class="audit-layout"><div>' + details + body + '</div>' + panel + '</div>', mount: function () { paintScore(); } };
+    return { html: head + '<div class="audit-layout"><div>' + details + body + '</div>' + panel + '</div>', mount: function () { paintScore(); if (F.purpose === 'training') { $('#page-title').textContent = F.editId ? 'Correct trainee scorecard' : 'New trainee scorecard'; document.title = $('#page-title').textContent + ' — AGS QA Hub'; $$('#nav button').forEach(function (b) { if (b.dataset.page === 'newaudit') b.removeAttribute('aria-current'); if (b.dataset.page === 'training') b.setAttribute('aria-current', 'page'); }); } } };
   };
   function yearOptsFor(sel) { var y = C.periodOf(S.today).year, l = []; for (var i = y; i >= y - 3; i--) l.push(i); return opts(l, sel); }
   function fieldSel(k, label, optionsHtml, req, attrs, chg, fkey) { return '<div><label class="lbl' + (req ? ' req' : '') + '" for="af-' + k + '">' + esc(label) + '</label><select id="af-' + k + '" class="input" data-change="' + (chg || 'afField') + '" data-k="' + (fkey || k) + '"' + (attrs || '') + '>' + optionsHtml + '</select><div class="err" id="e-' + k + '" hidden></div></div>'; }
@@ -3843,7 +3843,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   }
   function scoreButtons(ready) {
     var F = S.form;
-    return (F.callout ? '<div class="note warn small" style="margin-bottom:10px"><b>Callout:</b> this score is kept for coaching only and is not counted in the monthly QA score.</div>' : '') + '<div class="stack" style="gap:8px"><button class="btn btn-primary" id="af-submit" data-act="submitAudit">' + (F.editId ? 'Save correction' : 'Log audit') + '</button>' +
+    return (F.callout ? '<div class="note warn small" style="margin-bottom:10px"><b>Callout:</b> this score is kept for coaching only and is not counted in the monthly QA score.</div>' : '') + '<div class="stack" style="gap:8px"><button class="btn btn-primary" id="af-submit" data-act="submitAudit">' + (F.editId ? 'Save correction' : F.purpose === 'training' ? 'Log trainee scorecard' : 'Log audit') + '</button>' +
       (F.editId ? '' : '<button class="btn btn-ghost" data-act="resetForm">Reset form</button>') +
       (!ready && !F.noAudit ? '<div class="hint">Answer every item to log the audit.</div>' : '') + '</div>';
   }
@@ -3861,7 +3861,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   ACT.afAllOpen = function () { $$('.acc').forEach(function (a, i) { a.classList.add('open'); S.form.open[i] = true; }); };
   CHG.afCard = function (el) {
     var F = S.form;
-    var doIt = function () { var keep = { agentId: '' }; S.form = Object.assign(blankForm(el.value), { mode: S.mode }); render(); };
+    var doIt = function () { var keep = { agentId: '' }; S.form = Object.assign(blankForm(el.value), { mode: S.mode, purpose: F.purpose || 'qa' }); render(); };
     if (Object.keys(F.answers).length) confirmDialog({ title: 'Change scorecard?', message: 'Answers already given will be cleared.', ok: 'Change scorecard' }).then(function (r) { if (r) doIt(); else el.value = F.cardId; });
     else doIt();
   };
@@ -3936,7 +3936,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   function startCorrection(id) {
     var a = auditById(id); if (!a) return;
     var p = { cardId: a.ScorecardID, agentId: a.AgentID, interactionId: a.InteractionID, interactionAt: a.InteractionAt, auditDate: a.AuditDate, year: +a.Year, month: +a.Month, week: +a.Week, periodTouched: true,
-      auditNo: a.AuditNo, noAudit: C.b(a.NoAudit), noAuditReason: a.NoAuditReason, callout: C.b(a.Callout), calloutReason: a.CalloutReason || '', trainingWeek: a.TrainingWeek || '', secNotes: C.json(a.SectionNotes, {}), commitment: a.Commitment || '', summary: a.CallSummary, priority: a.Priority, notes: a.CoachingNotes, answers: {}, open: {}, editId: id, correction: '', mode: S.mode };
+      purpose: C.isTraining(a) ? 'training' : 'qa', auditNo: a.AuditNo, noAudit: C.b(a.NoAudit), noAuditReason: a.NoAuditReason, callout: C.b(a.Callout), calloutReason: a.CalloutReason || '', trainingWeek: a.TrainingWeek || '', secNotes: C.json(a.SectionNotes, {}), commitment: a.Commitment || '', summary: a.CallSummary, priority: a.Priority, notes: a.CoachingNotes, answers: {}, open: {}, editId: id, correction: '', mode: S.mode };
     C.arr(a.Results).forEach(function (r) { p.answers[r.c] = r.a; });
     S.form = Object.assign(blankForm(), p);
     while (modalStack.length) closeModal(true);
@@ -4257,7 +4257,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   };
   function s2(v) { return v === null || v === undefined ? '' : String(v); }
   ACT.trainTab = function (el) { S.f.training.tab = el.dataset.tab; render(); };
-  ACT.newTrainee = function () { var cs = liveCards(S.g.campaignId).filter(function (c) { return C.isTraining(c) && C.b(c.Active); }); S.form = Object.assign(blankForm(cs.length === 1 ? cs[0].ScorecardID : ''), { mode: S.mode }); go('newaudit'); };
+  ACT.newTrainee = function () { var cs = liveCards(S.g.campaignId).filter(function (c) { return C.isTraining(c) && C.b(c.Active); }); S.form = Object.assign(blankForm(cs.length === 1 ? cs[0].ScorecardID : ''), { mode: S.mode, purpose: 'training' }); go('newaudit'); };
   ACT.exportTraining = function () {
     var f = S.f.training, sum = C.trainingSummary(S.data, { campaignId: S.g.campaignId, teamLeadId: f.teamLeadId }), heads = ['Trainee', 'Campaign'];
     sum.cards.forEach(function (cn) { sum.weeks.forEach(function (w) { heads.push(cn + ' — Week ' + w); }); heads.push(cn + ' — Average'); });

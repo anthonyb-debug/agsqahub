@@ -502,6 +502,9 @@ table.t .group-h th{background:var(--surface);border-bottom:0;font-size:11.5px;c
 .pf-foot{margin-top:10px;border-top:1px solid #C9D1DC;padding-top:4px;font-size:7.5pt;color:#555;display:flex;justify-content:space-between}
 .callout-box{margin-top:12px;padding:10px 12px;border:1px dashed var(--warn);border-radius:var(--radius-m);background:var(--warn-soft)}.callout-box .check{align-items:flex-start}
 .pf-callout{border:1.5px solid #9A630E;color:#9A630E;font-weight:700;font-size:9pt;padding:4px 8px;margin:6px 0}
+.pills.rate button{min-width:34px;font-weight:700}.pills.rate button[aria-pressed="true"].r{background:var(--accent);color:#fff}
+.sec-note{padding:10px 14px;border-top:1px solid var(--line-2)}.sec-note textarea{min-height:56px}
+.train-sum th.grp{text-align:center;border-left:2px solid var(--line)}.train-sum td.avg,.train-sum th.avg{border-right:2px solid var(--line);font-weight:700}
 .pf-more{font-size:8pt;color:#555;font-style:italic}
 </style>
 </head>
@@ -533,8 +536,10 @@ var AGSCore = (function () {
   var ANSWERS = ['Y', 'N', 'NA'];
   var ITEM_TYPES = ['Major', 'Minor', 'ZTP'];
   var DEDUCTIONS = { Major: 5, Minor: 1 };
-  var METHODS = ['DEDUCTION', 'WEIGHTED'];
-  var METHOD_LABELS = { DEDUCTION: 'Deductions (Major / Minor / ZTP)', WEIGHTED: 'Weighted points' };
+  var METHODS = ['DEDUCTION', 'WEIGHTED', 'RATING'];
+  var METHOD_LABELS = { DEDUCTION: 'Deductions (Major / Minor / ZTP)', WEIGHTED: 'Weighted points', RATING: 'Rating 1–5 (weighted)' };
+  var PURPOSES = ['QA', 'TRAINING'];
+  var PURPOSE_LABELS = { QA: 'QA audits', TRAINING: 'Training (trainee scorecards)' };
   var CHANNELS = ['Call', 'Chat', 'Email', 'Back office', 'Other'];
   var PRIORITIES = ['No Action Needed', 'Moderate – Monitor', 'High – Coaching Needed', 'Critical – Immediate Action Required'];
   var ACTIVE_STATUSES = ['Active', 'Inactive'];
@@ -550,10 +555,10 @@ var AGSCore = (function () {
     Campaigns: ['CampaignID', 'Name', 'Status', 'Description'].concat(META),
     TeamLeads: ['TeamLeadID', 'FullName', 'Email', 'CampaignIDs', 'Status'].concat(META),
     Agents: ['AgentID', 'EmployeeID', 'FullName', 'CampaignID', 'TeamLeadID', 'Email', 'Status', 'HireDate', 'Notes'].concat(META),
-    Scorecards: ['ScorecardID', 'CampaignID', 'Name', 'Channel', 'Method', 'PassMark', 'WeeklyTarget', 'InteractionLabel', 'Definition', 'Version', 'Active'].concat(META),
+    Scorecards: ['ScorecardID', 'CampaignID', 'Name', 'Channel', 'Method', 'PassMark', 'WeeklyTarget', 'InteractionLabel', 'Definition', 'Version', 'Active', 'Purpose'].concat(META),
     Audits: ['AuditID', 'CampaignID', 'ScorecardID', 'ScorecardName', 'ScorecardVersion', 'Method', 'AgentID', 'TeamLeadID', 'AuditorEmail', 'AuditorName',
       'AuditNo', 'InteractionID', 'InteractionAt', 'AuditDate', 'Year', 'Month', 'Week', 'NoAudit', 'NoAuditReason', 'Score', 'Band', 'Passed', 'ZTP',
-      'MissedCount', 'Results', 'CallSummary', 'Priority', 'CoachingNotes', 'CorrectionNote', 'Source', 'ImportKey', 'Callout', 'CalloutReason'].concat(META),
+      'MissedCount', 'Results', 'CallSummary', 'Priority', 'CoachingNotes', 'CorrectionNote', 'Source', 'ImportKey', 'Callout', 'CalloutReason', 'Purpose', 'TrainingWeek', 'SectionNotes', 'Commitment'].concat(META),
     Users: ['UserID', 'Email', 'DisplayName', 'Role', 'TeamLeadID', 'AgentID', 'CampaignIDs', 'Active'].concat(META),
     AuditLog: ['AuditID', 'Timestamp', 'ActorEmail', 'ActorRole', 'Action', 'EntityType', 'EntityID', 'RequestID', 'ChangedFields', 'Details'],
     SyncLog: ['SyncID', 'Timestamp', 'ActorEmail', 'Action', 'RequestID', 'Status', 'DurationMs', 'EntityType', 'EntityID', 'Message'],
@@ -613,9 +618,9 @@ var AGSCore = (function () {
     campaigns: { Name: T(80), Status: E(ACTIVE_STATUSES), Description: T(1000) },
     teamLeads: { FullName: T(120), Email: T(200), CampaignIDs: T(500), Status: E(ACTIVE_STATUSES) },
     agents: { EmployeeID: T(50), FullName: T(120), CampaignID: ID, TeamLeadID: ID, Email: T(200), Status: E(ACTIVE_STATUSES), HireDate: D, Notes: T(1000) },
-    scorecards: { CampaignID: ID, Name: T(100), Channel: E(CHANNELS), Method: E(METHODS), PassMark: N, WeeklyTarget: N, InteractionLabel: T(40), Definition: J, Active: B },
+    scorecards: { CampaignID: ID, Name: T(100), Channel: E(CHANNELS), Method: E(METHODS), PassMark: N, WeeklyTarget: N, InteractionLabel: T(40), Definition: J, Active: B, Purpose: E(PURPOSES) },
     audits: { ScorecardID: ID, AgentID: ID, AuditNo: N, InteractionID: T(120), InteractionAt: T(40), AuditDate: D, Year: N, Month: N, Week: N,
-      NoAudit: B, NoAuditReason: T(500), CallSummary: T(6000), Priority: E(PRIORITIES), CoachingNotes: T(6000), CorrectionNote: T(1000), Callout: B, CalloutReason: T(500) },
+      NoAudit: B, NoAuditReason: T(500), CallSummary: T(6000), Priority: E(PRIORITIES), CoachingNotes: T(6000), CorrectionNote: T(1000), Callout: B, CalloutReason: T(500), TrainingWeek: N, SectionNotes: J, Commitment: T(3000) },
     users: { Email: T(200), DisplayName: T(120), Role: E(ASSIGNABLE_ROLES), TeamLeadID: ID, AgentID: ID, CampaignIDs: T(500), Active: B }
   };
   var ID_RE = /^[A-Z]{1,4}-(\d{4}-)?\d{5}$/;
@@ -654,11 +659,11 @@ var AGSCore = (function () {
         if (!c || !s(it.title).trim()) errors.Definition = 'Every item needs a number and a title (section "' + s(sec.title) + '").';
         else if (codes[c]) errors.Definition = 'Item number ' + c + ' is used twice.';
         codes[c] = true;
-        if (method === 'WEIGHTED') { if (!(n(it.weight) > 0)) errors.Definition = 'Item ' + c + ' needs a weight greater than 0.'; else total += n(it.weight); }
+        if (method === 'WEIGHTED' || method === 'RATING') { if (!(n(it.weight) > 0)) errors.Definition = 'Item ' + c + ' needs a weight greater than 0.'; else total += n(it.weight); }
         else if (ITEM_TYPES.indexOf(it.type) < 0) errors.Definition = 'Item ' + c + ' needs a type: Major, Minor or ZTP.';
       });
     });
-    if (method === 'WEIGHTED' && !errors.Definition && Math.abs(total - 100) > 0.05) errors.Definition = 'Weights add up to ' + round(total, 2) + '. They must total 100.';
+    if ((method === 'WEIGHTED' || method === 'RATING') && !errors.Definition && Math.abs(total - 100) > 0.05) errors.Definition = 'Weights add up to ' + round(total, 2) + '. They must total 100.';
     return errors;
   }
 
@@ -677,6 +682,14 @@ var AGSCore = (function () {
     var secs = (def && def.sections || []).map(function (sec) { return { title: sec.title, ztp: !!sec.ztp, deduction: 0, earned: 0, possible: 0, violations: 0 }; });
     items.forEach(function (x) {
       var it = x.item, a = answers[it.code];
+      if (method === 'RATING') {   // each item rated 1–5 (pass/fail items: 5 or 0); earns rating ÷ 5 × its weight
+        var okR = it.scale === 'pass' ? ['5', '0'] : ['1', '2', '3', '4', '5'], av = s(a), wr = n(it.weight) || 0;
+        if (okR.indexOf(av) < 0) { unanswered.push(it.code); av = ''; }
+        var rr = { code: it.code, title: it.title, section: x.section, sec: x.sec, answer: av, rating: av, weight: wr, pass: it.scale === 'pass' };
+        var gotR = av === '' ? 0 : +av / 5 * wr; rr.earned = av === '' ? null : round(gotR, 4);
+        possible += wr; secs[x.sec].possible += wr; earned += gotR; secs[x.sec].earned += gotR; if (av !== '' && +av < 5) missed++;
+        results.push(rr); return;
+      }
       if (ANSWERS.indexOf(a) < 0 || (a === 'NA' && method === 'WEIGHTED' && !it.allowNA)) { unanswered.push(it.code); a = ''; }
       var r = { code: it.code, title: it.title, section: x.section, sec: x.sec, answer: a };
       if (method === 'WEIGHTED') {
@@ -696,6 +709,7 @@ var AGSCore = (function () {
     var score;
     // Round half up on the true value (the original portal occasionally rounded x.5 down because of floating-point noise).
     if (method === 'WEIGHTED') score = possible > 0 ? Math.round(round(earned / possible * 100, 6)) : null;
+    else if (method === 'RATING') score = possible > 0 ? round(earned / possible * 100, 1) : null;   // one decimal, e.g. 55.8
     else score = ztp ? 0 : Math.max(0, 100 - ded);
     secs.forEach(function (sc) { sc.earned = round(sc.earned, 2); sc.possible = round(sc.possible, 2); });
     var band = bandFor(score, ztp), pm = n(passMark) === null ? 87 : n(passMark);
@@ -762,8 +776,10 @@ var AGSCore = (function () {
   // Callouts / flagged calls are scored for documentation and coaching only: they never count toward the agent's
   // monthly QA score, pass rate, bands, weekly targets, coverage, trends or most-missed items.
   function isCallout(a) { return !!a && b(a.Callout); }
-  function counts(a) { return !isCallout(a); }
-  function scored(a) { return !b(a.NoAudit) && !isCallout(a) && n(a.Score) !== null; }
+  // Trainee scorecards (Purpose TRAINING) live in their own Training section: never in QA scores, targets or coverage.
+  function isTraining(a) { return !!a && s(a.Purpose) === 'TRAINING'; }
+  function counts(a) { return !isCallout(a) && !isTraining(a); }
+  function scored(a) { return !b(a.NoAudit) && !isCallout(a) && !isTraining(a) && n(a.Score) !== null; }
   function prevMonth(y, m) { return m === 1 ? { year: y - 1, month: 12 } : { year: y, month: m - 1 }; }
   function buildIndex(data) {
     return { camps: byKey(data.campaigns, 'CampaignID'), tls: byKey(data.teamLeads, 'TeamLeadID'), agents: byKey(data.agents, 'AgentID'),
@@ -783,6 +799,8 @@ var AGSCore = (function () {
       if (f.week && wk(a) !== +f.week) return false;
       if (f.band && a.Band !== f.band) return false;
       if (f.kind === 'callout' && !isCallout(a)) return false;
+      if (f.purpose === 'qa' && isTraining(a)) return false;
+      if (f.purpose === 'training' && !isTraining(a)) return false;
       if (f.kind === 'scored' && isCallout(a)) return false;
       return true;
     };
@@ -800,7 +818,7 @@ var AGSCore = (function () {
   }
   // Agents the view is about: active, matching campaign / team lead / agent filters, with an active scorecard in their campaign.
   function agentsInView(data, f, idx) {
-    var withCard = {}; (data.scorecards || []).forEach(function (c) { if (live(c) && b(c.Active)) withCard[c.CampaignID] = true; });
+    var withCard = {}; (data.scorecards || []).forEach(function (c) { if (live(c) && b(c.Active) && !isTraining(c)) withCard[c.CampaignID] = true; });
     return (data.agents || []).filter(function (a) {
       return live(a) && a.Status !== 'Inactive' && withCard[a.CampaignID] && (!f.campaignId || a.CampaignID === f.campaignId) &&
         (!f.teamLeadId || a.TeamLeadID === f.teamLeadId) && (!f.agentId || a.AgentID === f.agentId);
@@ -811,7 +829,7 @@ var AGSCore = (function () {
   function targetFor(agent, data, f) {
     var t = 0;
     (data.scorecards || []).forEach(function (c) {
-      if (!live(c) || !b(c.Active) || c.CampaignID !== agent.CampaignID) return;
+      if (!live(c) || !b(c.Active) || isTraining(c) || c.CampaignID !== agent.CampaignID) return;
       if (f.scorecardId && c.ScorecardID !== f.scorecardId) return;
       t = Math.max(t, n(c.WeeklyTarget) || 0);
     });
@@ -880,7 +898,8 @@ var AGSCore = (function () {
     var def = json(card && card.Definition, {}), info = {};
     defItems(def).forEach(function (x) { info[x.item.code] = { title: x.item.title, section: x.section, detail: x.item.detail }; });
     return arr(a.Results).map(function (r) { var i = info[r.c] || {}; return { code: r.c, answer: r.a, type: r.t || '', weight: r.w, title: i.title || r.c, section: i.section || '', detail: i.detail || '',
-      deduction: r.a === 'N' ? (r.t === 'ZTP' ? 'AUTO-FAIL' : (DEDUCTIONS[r.t] || 0)) : 0, earned: r.w !== undefined ? (r.a === 'N' ? 0 : r.a === 'NA' ? null : n(r.w)) : null }; });
+      deduction: r.a === 'N' ? (r.t === 'ZTP' ? 'AUTO-FAIL' : (DEDUCTIONS[r.t] || 0)) : 0, rating: r.k === 'R' ? r.a : undefined, pass: !!r.p,
+      earned: r.k === 'R' ? (r.a === '' ? null : round(+r.a / 5 * n(r.w), 4)) : r.w !== undefined ? (r.a === 'N' ? 0 : r.a === 'NA' ? null : n(r.w)) : null }; });
   }
   function reportMissed(data, f) {
     var list = (data.audits || []).filter(auditFilter(f)).filter(scored), idx = buildIndex(data), items = {};
@@ -893,6 +912,25 @@ var AGSCore = (function () {
     });
     return Object.keys(items).map(function (k) { var g = items[k]; g.agentCount = Object.keys(g.agents).length; delete g.agents; g.missRate = rate(g.missed, g.scoredCount); return g; })
       .filter(function (g) { return g.missed > 0; }).sort(function (x, y) { return y.missed - x.missed || y.missRate.value - x.missRate.value; });
+  }
+  // Trainee weekly summary: per trainee, each trainee scorecard's score by review period (training week), and its average.
+  // Teach Back and Mock Call are reported separately, never combined.
+  function trainingSummary(data, f) {
+    f = f || {};
+    var list = (data.audits || []).filter(function (a) { return live(a) && isTraining(a) && !b(a.NoAudit) && n(a.Score) !== null && (!f.campaignId || a.CampaignID === f.campaignId) && (!f.agentId || a.AgentID === f.agentId) && (!f.teamLeadId || a.TeamLeadID === f.teamLeadId); });
+    var idx = buildIndex(data), cards = [], maxWeek = 0, by = {};
+    list.forEach(function (a) {
+      var cn = a.ScorecardName || (idx.cards[a.ScorecardID] || {}).Name || a.ScorecardID, w = +a.TrainingWeek || 1;
+      if (cards.indexOf(cn) < 0) cards.push(cn); if (w > maxWeek) maxWeek = w;
+      var r = by[a.AgentID] || (by[a.AgentID] = { agentId: a.AgentID, name: (idx.agents[a.AgentID] || {}).FullName || a.AgentID, campaignId: a.CampaignID, cards: {} });
+      var c = r.cards[cn] || (r.cards[cn] = { weeks: {}, all: [] }); (c.weeks[w] = c.weeks[w] || []).push(n(a.Score)); c.all.push(n(a.Score));
+    });
+    var avg = function (l) { return l && l.length ? round(l.reduce(function (x, y) { return x + y; }, 0) / l.length, 1) : null; };
+    cards.sort(function (x, y) { var tb = /teach/i; return tb.test(x) === tb.test(y) ? (x < y ? -1 : 1) : (tb.test(x) ? -1 : 1); });
+    var rows = Object.keys(by).map(function (k) { var r = by[k]; Object.keys(r.cards).forEach(function (cn) { var c = r.cards[cn]; c.avg = avg(c.all); Object.keys(c.weeks).forEach(function (w) { c.weeks[w] = avg(c.weeks[w]); }); delete c.all; }); return r; })
+      .sort(function (x, y) { return x.name < y.name ? -1 : 1; });
+    var weeks = []; for (var i = 1; i <= Math.max(maxWeek, 3); i++) weeks.push(i);
+    return { cards: cards, weeks: weeks, rows: rows, count: list.length };
   }
   function agentProfile(data, agentId, today) {
     var list = (data.audits || []).filter(function (a) { return live(a) && a.AgentID === agentId; })
@@ -918,7 +956,7 @@ var AGSCore = (function () {
   // ==================================================================
   // SERVICE LAYER (same repo contract as the Coaching Hub)
   // ==================================================================
-  var SAFE_AUDIT = ['Callout', 'Status', 'CampaignID', 'ScorecardID', 'AgentID', 'TeamLeadID', 'AuditDate', 'Year', 'Month', 'Week', 'AuditNo', 'NoAudit',
+  var SAFE_AUDIT = ['Purpose', 'TrainingWeek', 'Callout', 'Status', 'CampaignID', 'ScorecardID', 'AgentID', 'TeamLeadID', 'AuditDate', 'Year', 'Month', 'Week', 'AuditNo', 'NoAudit',
     'Score', 'Band', 'Passed', 'ZTP', 'Priority', 'Role', 'Active', 'Name', 'FullName', 'Email', 'Method', 'PassMark', 'WeeklyTarget', 'Version',
     'ArchivedAt', 'CampaignIDs'];
   function checkVersion(entity, cur, expected) {
@@ -1018,6 +1056,12 @@ var AGSCore = (function () {
     if (!(+m.Week >= 1 && +m.Week <= 4 && +m.Week % 1 === 0)) errors.Week = 'Choose a week from 1 to 4.';
     if (s(m.AuditNo) && !(+m.AuditNo >= 1 && +m.AuditNo <= 50 && +m.AuditNo % 1 === 0)) errors.AuditNo = 'Enter a whole number.';
     if (b(m.NoAudit) && s(m.NoAuditReason).length < 3) errors.NoAuditReason = 'Say why there is no audit this week.';
+    if (card && isTraining(card)) {   // trainee scorecards: a review period (training week); never a callout or "no audit"
+      m.Purpose = a.Purpose = 'TRAINING';
+      if (!(+m.TrainingWeek >= 1 && +m.TrainingWeek <= 12 && +m.TrainingWeek % 1 === 0)) errors.TrainingWeek = 'Choose the review period (training week 1 to 12).';
+      if (b(m.Callout)) errors.Callout = 'Trainee scorecards cannot be callouts.';
+      if (b(m.NoAudit)) errors.NoAudit = 'Trainee scorecards are always scored.';
+    } else if (card) { m.Purpose = a.Purpose = 'QA'; if (s(m.TrainingWeek)) m.TrainingWeek = a.TrainingWeek = ''; }
     if (b(m.Callout) && b(m.NoAudit)) errors.Callout = 'A callout documents a call: it cannot also be "no audit this week".';
     if (b(m.Callout) && s(m.CalloutReason).trim().length < 5) errors.CalloutReason = 'Say why this call is a callout (at least 5 characters).';
     if (!b(m.Callout) && s(m.CalloutReason)) m.CalloutReason = a.CalloutReason = '';
@@ -1032,7 +1076,7 @@ var AGSCore = (function () {
   function plural(k, w) { return k + ' ' + w + (k === 1 ? '' : 's'); }
   function scoredFields(m, r) {
     if (b(m.NoAudit)) return { Score: '', Band: '', Passed: '', ZTP: '', MissedCount: '', Results: '' };
-    var compact = r.results.map(function (x) { var o = { c: x.code, a: x.answer, s: x.sec }; if (x.type) o.t = x.type; else o.w = x.weight; return o; });
+    var compact = r.results.map(function (x) { var o = { c: x.code, a: x.answer, s: x.sec }; if (x.type) o.t = x.type; else o.w = x.weight; if (x.rating !== undefined) { o.k = 'R'; if (x.pass) o.p = 1; } return o; });
     return { Score: String(r.score), Band: r.band, Passed: r.passed ? 'TRUE' : 'FALSE', ZTP: r.ztp ? 'TRUE' : 'FALSE', MissedCount: String(r.missed), Results: JSON.stringify(compact) };
   }
   // Rebuild the definition an audit was scored with, so corrections never change how old audits are scored.
@@ -1040,7 +1084,7 @@ var AGSCore = (function () {
     var secs = [], titles = {};
     defItems(cardDef).forEach(function (x) { titles[x.item.code] = x.item.title; });
     results.forEach(function (r) { var k = +r.s || 0; while (secs.length <= k) secs.push({ title: ((cardDef && cardDef.sections || [])[secs.length] || {}).title || 'Section ' + (secs.length + 1), items: [] });
-      var it = { code: r.c, title: titles[r.c] || r.c }; if (r.t) it.type = r.t; else it.weight = r.w; secs[k].items.push(it); });
+      var it = { code: r.c, title: titles[r.c] || r.c }; if (r.t) it.type = r.t; else it.weight = r.w; if (r.p) it.scale = 'pass'; secs[k].items.push(it); });
     return { sections: secs.filter(function (x) { return x.items.length; }) };
   }
   function confirmChecks(ctx, m, card, selfId, confirm) {
@@ -1146,6 +1190,7 @@ var AGSCore = (function () {
     var rec = saveEntity(ctx, 'scorecards', p, function (m, e, x, f) {
       if (!s(m.Active)) m.Active = f.Active = 'TRUE'; if (!m.Method) m.Method = f.Method = 'DEDUCTION';
       if (!s(m.PassMark)) m.PassMark = f.PassMark = '87'; if (!s(m.WeeklyTarget)) m.WeeklyTarget = f.WeeklyTarget = '0';
+      if (!s(m.Purpose)) m.Purpose = f.Purpose = 'QA'; if (m.Purpose === 'TRAINING' && s(m.WeeklyTarget) !== '0') m.WeeklyTarget = f.WeeklyTarget = '0';   // trainee scorecards have no weekly QA target
       requireFields(e, m, ['CampaignID', 'Name', 'Channel', 'Method'], '');
       if (m.CampaignID && !ctx.find('campaigns', m.CampaignID)) e.CampaignID = 'Select an existing campaign.';
       if (!(n(m.PassMark) >= 0 && n(m.PassMark) <= 100)) e.PassMark = 'Enter a pass mark from 0 to 100.';
@@ -2753,6 +2798,36 @@ var AGSCore = (function () {
   ]
  }
 ];
+  // Trainee scorecards (from AST_TRAINEE_SCORECARD.xlsx). Each item rated 1–5; earns rating ÷ 5 × weight.
+  // Mock Call: Attendance & Punctuality removed; sections re-weighted by priority to total 100.
+  var TRAINEE_SCORECARDS = [
+    { name: 'AST Trainee — Teach Back', sections: [
+      { title: 'Technical Competency', description: 'Measures understanding of tasks, processes, and tools required for the role.', items: [
+        { code: '1.1', title: 'Knowledge of systems / software', weight: 15 }, { code: '1.2', title: 'Accuracy of work', weight: 15 },
+        { code: '1.3', title: 'Problem-solving / troubleshooting', weight: 10 }, { code: '1.4', title: 'Task completion efficiency', weight: 10 }] },
+      { title: 'Communication Skills', description: 'Measures clarity, responsiveness, and professionalism in verbal and written communication.', items: [
+        { code: '2.1', title: 'Clarity of verbal communication', weight: 15 }, { code: '2.2', title: 'Clarity of written communication', weight: 10 },
+        { code: '2.3', title: 'Team interaction / collaboration', weight: 2 }, { code: '2.4', title: 'Ability to convey ideas effectively', weight: 3 }] },
+      { title: 'Initiative & Proactiveness', description: 'Measures willingness to take ownership and suggest improvements.', items: [
+        { code: '3.1', title: 'Takes initiative without prompting', weight: 4 }, { code: '3.2', title: 'Shows problem-solving attitude', weight: 6 },
+        { code: '3.3', title: 'Seeks learning opportunities', weight: 10 }] }] },
+    { name: 'AST Trainee — Mock Call', sections: [
+      { title: 'Technical Competency', description: 'Measures understanding of tasks, processes, and tools required for the role.', items: [
+        { code: '1.1', title: 'Knowledge of systems / software', weight: 12 }, { code: '1.2', title: 'Accuracy of work', weight: 12 },
+        { code: '1.3', title: 'Problem-solving / troubleshooting', weight: 8 }, { code: '1.4', title: 'Task completion efficiency', weight: 8 }] },
+      { title: 'Communication Skills', description: 'Measures clarity, responsiveness, and professionalism in verbal and written communication.', items: [
+        { code: '2.1', title: 'Clarity of verbal communication', weight: 10 }, { code: '2.2', title: 'Clarity of written communication', weight: 10 },
+        { code: '2.3', title: 'Team interaction / collaboration', weight: 3 }, { code: '2.4', title: 'Ability to convey ideas effectively', weight: 7 }] },
+      { title: 'Adaptability & Learning', description: 'Measures ability to learn quickly and adjust to changes.', items: [
+        { code: '3.1', title: 'Learns processes quickly', weight: 8 }, { code: '3.2', title: 'Knowledge Checks', detail: 'Pass / fail: 5 or 0', weight: 6, scale: 'pass' },
+        { code: '3.3', title: 'Mock Calls', detail: 'Pass / fail: 5 or 0', weight: 6, scale: 'pass' }] },
+      { title: 'Initiative & Proactiveness', description: 'Measures willingness to take ownership and suggest improvements.', items: [
+        { code: '4.1', title: 'Takes initiative without prompting', weight: 2 }, { code: '4.2', title: 'Shows problem-solving attitude', weight: 3 },
+        { code: '4.3', title: 'Seeks learning opportunities', weight: 5 }] }] }];
+  function traineeScorecardRecord(sc, campaignId) {
+    return { CampaignID: campaignId, Name: sc.name, Channel: 'Other', Method: 'RATING', PassMark: '87', WeeklyTarget: '0', InteractionLabel: 'Reference',
+      Definition: JSON.stringify({ sections: sc.sections }), Version: '1', Active: 'TRUE', Purpose: 'TRAINING' };
+  }
   var INTERACTION_LABELS = { Call: 'CTM phone', Chat: 'Chat ID', 'Back office': 'Claim / account ID', Email: 'Ticket ID', Other: 'Reference' };
   function startingScorecardRecord(sc, campaignId) {
     return { CampaignID: campaignId, Name: sc.name, Channel: sc.channel, Method: sc.method, PassMark: String(sc.passMark), WeeklyTarget: String(sc.weeklyTarget),
@@ -2780,6 +2855,7 @@ var AGSCore = (function () {
     var camp = {}; D.campaigns.forEach(function (c) { camp[c.Name] = c; });
     if (opts.scorecards && opts.scorecards.length) { D.scorecards = opts.scorecards.map(clone); counters.scorecards = D.scorecards.length; }
     else STARTING_SCORECARDS.forEach(function (sc) { if (camp[sc.campaign]) D.scorecards.push(rec('scorecards', startingScorecardRecord(sc, camp[sc.campaign].CampaignID), addDays(today, -200))); });
+    if (!(opts.scorecards && opts.scorecards.length) && camp.Legacy) TRAINEE_SCORECARDS.forEach(function (sc) { D.scorecards.push(rec('scorecards', traineeScorecardRecord(sc, camp.Legacy.CampaignID), addDays(today, -200))); });
     var tlNames = { Legacy: ['Andrea Villanueva', 'Marco Delgado'], Banyan: ['Patricia Ramos', 'Joel Santiago'], Takahami: ['Kristine Bautista', 'Rafael Mendoza'] };
     var mail = function (nm) { return nm.toLowerCase().replace(/[^a-z ]/g, '').replace(/ /g, '.') + '@example.com'; };
     var tls = {};
@@ -2857,6 +2933,20 @@ var AGSCore = (function () {
         Priority: prio, CallSummary: pick(['Caller asked about coverage and next steps.', 'Routine inquiry handled end to end.', 'Follow-up on a previous request.', 'New inquiry routed after qualification.']),
         CoachingNotes: sr.passed ? '' : 'Review the missed items with the agent this week.' }, rnd() < 0.06 ? { Callout: 'TRUE', CalloutReason: pick(['Escalation documented for coaching', 'Client-flagged call for review', 'Process gap to share with the team']) } : { Callout: 'FALSE', CalloutReason: '' }), d.date, au[0]));
     });
+    // trainee scores (demo): three Legacy agents, weeks 1–3, both trainee scorecards
+    D.scorecards.filter(function (c) { return isTraining(c); }).forEach(function (card) {
+      var def = json(card.Definition, {});
+      D.agents.filter(function (a) { return a.CampaignID === card.CampaignID; }).slice(5, 8).forEach(function (ag, ai) {
+        for (var w = 1; w <= 3; w++) {
+          var answers = {}, base = 2 + ai * 0.5 + w * 0.6;
+          defItems(def).forEach(function (x) { var v = Math.max(1, Math.min(5, Math.round(base + rnd() * 1.4))); answers[x.item.code] = x.item.scale === 'pass' ? (v >= 3 ? '5' : '0') : String(v); });
+          var sr = scoreAudit(def, 'RATING', answers, card.PassMark), f = scoredFields({ NoAudit: 'FALSE' }, sr), date = addDays(today, -(3 - w) * 7 - 2);
+          D.audits.push(rec('audits', Object.assign({ CampaignID: card.CampaignID, ScorecardID: card.ScorecardID, ScorecardName: card.Name, ScorecardVersion: '1', Method: 'RATING', AgentID: ag.AgentID,
+            TeamLeadID: ag.TeamLeadID, AuditorEmail: 'paolo.santos@example.com', AuditorName: 'Paolo Santos', AuditNo: '1', AuditDate: date, Year: +date.slice(0, 4), Month: +date.slice(5, 7), Week: weekOfMonth(date),
+            Source: 'APP', Purpose: 'TRAINING', TrainingWeek: w, NoAudit: 'FALSE', Callout: 'FALSE', SectionNotes: JSON.stringify({ 0: 'Walked through the system confidently.' }), Commitment: 'I will review the call flow before the next session.' }, f), date, 'paolo.santos@example.com'));
+        }
+      });
+    });
     return D;
   }
 
@@ -2872,7 +2962,7 @@ var AGSCore = (function () {
     isAdmin: isAdmin, isManager: isManager, isQA: isQA, isAgentUser: isAgentUser, canLogAudits: canLogAudits, canEditAudit: canEditAudit, capabilities: capabilities,
     buildScope: buildScope, inScope: inScope, auditFilter: auditFilter, summarize: summarize, bandCounts: bandCounts, weeklyMatrix: weeklyMatrix, dashboard: dashboard,
     reportOverview: reportOverview, reportTeams: reportTeams, reportAuditors: reportAuditors, reportMissed: reportMissed, agentProfile: agentProfile, auditItems: auditItems,
-    scored: scored, isCallout: isCallout, buildIndex: buildIndex, csvCell: csvCell, toCsv: toCsv, handle: handle, resolveUser: resolveUser, publicUser: publicUser, generateSynthetic: generateSynthetic,
+    scored: scored, isCallout: isCallout, isTraining: isTraining, trainingSummary: trainingSummary, TRAINEE_SCORECARDS: TRAINEE_SCORECARDS, traineeScorecardRecord: traineeScorecardRecord, PURPOSES: PURPOSES, PURPOSE_LABELS: PURPOSE_LABELS, buildIndex: buildIndex, csvCell: csvCell, toCsv: toCsv, handle: handle, resolveUser: resolveUser, publicUser: publicUser, generateSynthetic: generateSynthetic,
     _systemContext: function (repo, user) { return makeCtx(repo, user, 'system-' + repo.uuid()); }
   };
 })();
@@ -3504,10 +3594,10 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   CHG.gYear = function (el) { S.g.year = +el.value; render(); };
   CHG.gMonth = function (el) { S.g.month = +el.value; render(); };
   // ================= shell =================
-  var NAV = [['dashboard', 'Dashboard', 'dashboard'], ['newaudit', 'New audit', 'sessions', 'logAudits'], ['audits', 'Audits', 'followups'],
+  var NAV = [['dashboard', 'Dashboard', 'dashboard'], ['newaudit', 'New audit', 'sessions', 'logAudits'], ['audits', 'Audits', 'followups'], ['training', 'Training', 'teamleads', 'viewTeam'],
     ['reports', 'Reports', 'analytics', 'viewReports'], ['agents', 'Agents', 'agents', 'viewTeam'], ['guide', 'QA guide', 'templates'], ['settings', 'Settings', 'settings', 'viewSettings']];
-  var AGENT_NAV = [['dashboard', 'My results', 'dashboard'], ['audits', 'My audits', 'followups'], ['guide', 'QA guide', 'templates']];
-  var TITLES = { dashboard: 'Dashboard', newaudit: 'New audit', audits: 'Audits', reports: 'Reports', agents: 'Agents', guide: 'QA guide', settings: 'Settings' };
+  var AGENT_NAV = [['dashboard', 'My results', 'dashboard'], ['audits', 'My audits', 'followups'], ['training', 'My training', 'teamleads'], ['guide', 'QA guide', 'templates']];
+  var TITLES = { training: 'Training', dashboard: 'Dashboard', newaudit: 'New audit', audits: 'Audits', reports: 'Reports', agents: 'Agents', guide: 'QA guide', settings: 'Settings' };
   var PERIOD_PAGES = { dashboard: 1, audits: 1, reports: 1, agents: 1 };
   function navList() { return isAgentRole() ? AGENT_NAV : NAV.filter(function (n) { return !n[3] || cap(n[3]); }); }
   function yearOpts() { var y = C.periodOf(S.today || todayTz()).year, list = []; for (var i = y + 1; i >= y - 4; i--) list.push(i); return opts(list, S.g.year); }
@@ -3639,7 +3729,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   function blankForm(cardId) {
     var p = C.periodOf(S.today);
     return { cardId: cardId || '', agentId: '', interactionId: '', interactionAt: '', auditDate: S.today, year: p.year, month: p.month, week: p.week, periodTouched: false,
-      auditNo: '', noAudit: false, noAuditReason: '', callout: false, calloutReason: '', summary: '', priority: '', notes: '', answers: {}, open: { 0: true }, editId: '', correction: '' };
+      auditNo: '', noAudit: false, noAuditReason: '', callout: false, calloutReason: '', trainingWeek: '', secNotes: {}, commitment: '', summary: '', priority: '', notes: '', answers: {}, open: { 0: true }, editId: '', correction: '' };
   }
   function formDef(F) { if (F.editId) { var a = auditById(F.editId); return defForAudit(a, cardOf(a.ScorecardID)); } return defForCard(cardOf(F.cardId)); }
   function auditById(id) { return S.data.audits.filter(function (a) { return a.AuditID === id; })[0] || null; }
@@ -3660,7 +3750,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       '<div id="af-top"></div>';
     var cardsAvail = liveCards(S.g.campaignId).filter(function (c) { return C.b(c.Active) || c.ScorecardID === F.cardId; });
     var details = '<section class="panel" style="margin-bottom:12px"><div class="panel-b"><div class="fgrid three">' +
-      fieldSel('ScorecardID', 'Scorecard', opts(cardsAvail.map(function (c) { return [c.ScorecardID, c.Name + ' — ' + campName(c.CampaignID)]; }), F.cardId, 'Select scorecard'), true, editing ? ' disabled' : '', 'afCard') +
+      fieldSel('ScorecardID', 'Scorecard', opts(cardsAvail.map(function (c) { return [c.ScorecardID, c.Name + ' — ' + campName(c.CampaignID) + (C.isTraining(c) ? ' (trainee)' : '')]; }), F.cardId, 'Select scorecard'), true, editing ? ' disabled' : '', 'afCard') +
       fieldSel('AgentID', 'Agent', card ? agentOpts(card.CampaignID, F.agentId, 'Select agent', true) : '<option value="">Choose a scorecard first</option>', true, '', 'afField', 'agentId') +
       fieldIn('InteractionID', card ? (card.InteractionLabel || 'Interaction ID') : 'Interaction ID', 'text', F.interactionId, 'interactionId', 'maxlength="120"') +
       fieldIn('InteractionAt', 'Interaction date and time', 'datetime-local', F.interactionAt, 'interactionAt') +
@@ -3669,13 +3759,19 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       fieldSel('Year', 'Year', yearOptsFor(F.year), true, '', 'afField', 'year') +
       fieldSel('Month', 'Month', opts(MONTH_NAMES.map(function (m, i) { return [i + 1, m]; }), F.month), true, '', 'afField', 'month') +
       fieldSel('Week', 'Week', opts([1, 2, 3, 4].map(function (w) { return [w, 'Week ' + w]; }), F.week), true, '', 'afField', 'week') +
-      '</div><div style="margin-top:10px"><label class="check"><input type="checkbox" data-change="afNoAudit"' + (F.noAudit ? ' checked' : '') + '> No audit this week for this agent</label>' +
-      '<div id="w-noaudit"' + (F.noAudit ? '' : ' hidden') + ' style="margin-top:8px">' + fieldIn('NoAuditReason', 'Reason', 'text', F.noAuditReason, 'noAuditReason', 'maxlength="500" placeholder="For example: on leave, no eligible calls"') + '</div></div>' +
+      '</div><!--train--><!--qa--><div style="margin-top:10px"><label class="check"><input type="checkbox" data-change="afNoAudit"' + (F.noAudit ? ' checked' : '') + '> No audit this week for this agent</label>' +
+      '<div id="w-noaudit"' + (F.noAudit ? '' : ' hidden') + ' style="margin-top:8px">' + fieldIn('NoAuditReason', 'Reason', 'text', F.noAuditReason, 'noAuditReason', 'maxlength="500" placeholder="For example: on leave, no eligible calls"') + '</div></div><!--/qa-->' +
       '<div style="margin-top:12px">' + fieldTa('CallSummary', 'Call summary', F.summary, 'summary') + '</div>' +
-      '<div class="callout-box"><label class="check"><input type="checkbox" data-change="afCallout"' + (F.callout ? ' checked' : '') + '> <span><b>Callout / Flagged call</b>: for documentation, monitoring and coaching only. It is scored for reference but <b>not counted</b> in the agent\'s monthly QA score or performance evaluation.</span></label>' +
-      '<div id="w-callout"' + (F.callout ? '' : ' hidden') + ' style="margin-top:8px">' + fieldIn('CalloutReason', 'Reason for the callout', 'text', F.calloutReason, 'calloutReason', 'maxlength="500" placeholder="For example: escalation documented for coaching"', true) + '</div><div class="err" id="e-Callout" hidden></div></div>' +
+      '<!--qa--><div class="callout-box"><label class="check"><input type="checkbox" data-change="afCallout"' + (F.callout ? ' checked' : '') + '> <span><b>Callout / Flagged call</b>: for documentation, monitoring and coaching only. It is scored for reference but <b>not counted</b> in the agent\'s monthly QA score or performance evaluation.</span></label>' +
+      '<div id="w-callout"' + (F.callout ? '' : ' hidden') + ' style="margin-top:8px">' + fieldIn('CalloutReason', 'Reason for the callout', 'text', F.calloutReason, 'calloutReason', 'maxlength="500" placeholder="For example: escalation documented for coaching"', true) + '</div><div class="err" id="e-Callout" hidden></div></div><!--/qa-->' +
       (editing ? '<div style="margin-top:12px">' + fieldIn('CorrectionNote', 'Reason for this correction', 'text', F.correction, 'correction', 'maxlength="1000"', true) + '</div>' : '') +
       '</div></section>';
+    if (card && C.isTraining(card)) {   // trainee scorecard: review period and hire date instead of "no audit" and callouts
+      var tag = ag(F.agentId) || {};
+      details = details.replace(/<!--qa-->[\s\S]*?<!--\/qa-->/g, '').replace('<!--train-->', '<div class="note" style="margin-top:12px"><b>Trainee scorecard.</b> Rate each item 1–5 (pass/fail items: 5 or 0); each earns rating ÷ 5 × its weight. Kept in the Training section, never in QA scores.</div>' +
+        '<div class="fgrid three" style="margin-top:10px">' + fieldSel('TrainingWeek', 'Review period', opts([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(function (w) { return [w, 'Training week ' + w]; }), F.trainingWeek, 'Select'), true, '', 'afField', 'trainingWeek') +
+        '<div><span class="lbl">Hire date</span><div class="input" style="background:var(--surface-2)">' + esc(tag.HireDate ? fmtDate(tag.HireDate) : '—') + '</div></div><div><span class="lbl">Trainer</span><div class="input" style="background:var(--surface-2)">' + esc(S.user.displayName) + '</div></div></div>');
+    }
     var body = '';
     if (!card) body = emptyState('Choose a scorecard', 'The scorecard decides which items you answer and how the score is calculated.');
     else if (F.noAudit) body = '<div class="note">This entry records that the agent was not audited this week. It is not scored and does not affect averages.</div>';
@@ -3685,7 +3781,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
         def.sections.map(function (sc, i) { return sectionHtml(sc, i, card, F); }).join('') +
         '<section class="panel" style="margin-top:12px"><div class="panel-h"><h2>Remarks</h2></div><div class="panel-b"><div class="fgrid">' +
         fieldSel('Priority', 'Priority level', opts(C.PRIORITIES, F.priority, 'Select'), false, '', 'afField', 'priority') +
-        '<div></div>' + fieldTa('CoachingNotes', 'Coaching notes', F.notes, 'notes', 'span2') + '</div></div></section>';
+        '<div></div>' + fieldTa('CoachingNotes', 'Coaching notes', F.notes, 'notes', 'span2') + (C.isTraining(card) ? fieldTa('Commitment', 'Agent\'s commitment', F.commitment, 'commitment', 'span2') : '') + '</div></div></section>';
     }
     var panel = '<aside class="panel score-panel"><div class="panel-b" id="score-panel"></div></aside>';
     return { html: head + '<div class="audit-layout"><div>' + details + body + '</div>' + panel + '</div>', mount: function () { paintScore(); } };
@@ -3695,6 +3791,10 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   function fieldIn(k, label, type, val, fkey, attrs, req) { return '<div><label class="lbl' + (req ? ' req' : '') + '" for="af-' + k + '">' + esc(label) + '</label><input id="af-' + k + '" class="input" type="' + type + '" value="' + esc(val) + '" data-input="afInput" data-k="' + fkey + '" ' + (attrs || '') + '><div class="err" id="e-' + k + '" hidden></div></div>'; }
   function fieldTa(k, label, val, fkey, span) { return '<div class="' + (span || '') + '"><label class="lbl" for="af-' + k + '">' + esc(label) + '</label><textarea id="af-' + k + '" class="input" data-input="afInput" data-k="' + fkey + '" maxlength="6000">' + esc(val) + '</textarea></div>'; }
   function pillsFor(it, card, ans) {
+    if (card.Method === 'RATING') {
+      var rc = it.scale === 'pass' ? [['5', 'Pass', 'y'], ['0', 'Fail', 'n']] : ['1', '2', '3', '4', '5'].map(function (v) { return [v, v, 'r']; });
+      return '<span class="pills' + (it.scale === 'pass' ? '' : ' rate') + '" role="group" aria-label="' + esc('Item ' + it.code + ': ' + it.title + (it.scale === 'pass' ? ' (pass or fail)' : ' (rate 1 to 5)')) + '">' + rc.map(function (c) { return '<button type="button" class="' + c[2] + '" aria-pressed="' + (String(ans) === c[0]) + '" data-act="ans" data-code="' + esc(it.code) + '" data-v="' + c[0] + '">' + c[1] + '</button>'; }).join('') + '</span>';
+    }
     var weighted = card.Method === 'WEIGHTED', choices = it.type === 'ZTP' ? [['Y', 'Clear', 'y'], ['N', 'Violated', 'n']] : weighted ? [['Y', 'Yes', 'y'], ['N', 'No', 'n']] : [['Y', 'Yes', 'y'], ['N', 'No', 'n'], ['NA', 'N/A', 'na']];
     if (weighted && it.allowNA) choices.push(['NA', 'N/A', 'na']);
     return '<span class="pills" role="group" aria-label="' + esc('Item ' + it.code + ': ' + it.title) + '">' + choices.map(function (c) { return '<button type="button" class="' + c[2] + '" aria-pressed="' + (ans === c[0]) + '" data-act="ans" data-code="' + esc(it.code) + '" data-v="' + c[0] + '">' + c[1] + '</button>'; }).join('') + '</span>';
@@ -3704,10 +3804,14 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     return '<div class="acc' + (F.open[i] ? ' open' : '') + (sc.ztp ? ' ztp' : '') + '" id="acc-' + i + '"><button type="button" class="acc-h" data-act="accToggle" data-i="' + i + '" aria-expanded="' + !!F.open[i] + '"><span class="roman">' + (ROMAN[i] || i + 1) + '</span><span class="t">' + esc(sc.title) + '</span><span class="st" id="acc-st-' + i + '">—</span><svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,6 8,10 12,6"/></svg></button><div class="acc-b">' +
       sc.items.map(function (it) {
         var g = ''; if (it.group && it.group !== group) { group = it.group; g = '<div class="group-row">' + esc(it.group) + '</div>'; }
-        var badge = card.Method === 'WEIGHTED' ? '<span class="tbadge W">' + C.n(it.weight).toFixed(1) + ' pts</span>' : '<span class="tbadge ' + esc(it.type) + '">' + esc(it.type) + '</span>';
+        var badge = isPts(card.Method) ? '<span class="tbadge W">' + C.n(it.weight).toFixed(1) + ' pts</span>' : '<span class="tbadge ' + esc(it.type) + '">' + esc(it.type) + '</span>';
         return g + '<div class="item" id="it-' + esc(it.code).replace(/[^A-Za-z0-9_-]/g, '_') + '" data-code="' + esc(it.code) + '"><span class="code">' + esc(it.code) + '</span><div><div class="ti">' + esc(it.title) + '</div>' + (it.detail ? '<div class="de">' + esc(it.detail) + '</div>' : '') + '</div><span class="tb">' + badge + '</span>' + pillsFor(it, card, F.answers[it.code]) + '<span class="dv">—</span></div>';
-      }).join('') + '</div></div>';
+      }).join('') + (C.isTraining(card) ? '<div class="sec-note"><label class="lbl" for="sn-' + i + '">Comments</label><textarea id="sn-' + i + '" class="input" data-input="afSecNote" data-i="' + i + '" maxlength="1000">' + esc((F.secNotes || {})[i] || '') + '</textarea></div>' : '') + '</div></div>';
   }
+  // Weighted and Rating scorecards both show points; Rating items are answered 1–5 (pass/fail items: 5 or 0).
+  function isPts(m) { return m === 'WEIGHTED' || m === 'RATING'; }
+  function ansLabel(x) { if (x.rating !== undefined) return x.rating === '' ? '—' : x.pass ? (x.rating === '5' ? 'Pass (5)' : 'Fail (0)') : x.rating + ' / 5'; return x.answer === 'Y' ? (x.type === 'ZTP' ? 'Clear' : 'Yes') : x.answer === 'N' ? (x.type === 'ZTP' ? 'Violated' : 'No') : x.answer === 'NA' ? 'N/A' : '—'; }
+  function below(x) { return x.answer === 'N' || (x.rating !== undefined && x.rating !== '' && +x.rating < 5); }
   function itemEl(code) { return document.getElementById('it-' + String(code).replace(/[^A-Za-z0-9_-]/g, '_')); }
   function paintScore() {
     var F = S.form, card = cardOf(F.cardId), box = $('#score-panel'); if (!box) return;
@@ -3716,13 +3820,13 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     var def = formDef(F), r = C.scoreAudit(def, card.Method, F.answers, card.PassMark), total = r.results.length, answered = total - r.unanswered.length;
     r.results.forEach(function (x) {
       var el = itemEl(x.code); if (!el) return; var dv = el.querySelector('.dv');
-      el.classList.toggle('missed', x.answer === 'N');
-      if (card.Method === 'WEIGHTED') dv.textContent = x.answer === '' ? '—' : x.answer === 'NA' ? 'N/A' : (x.earned || 0).toFixed(1);
+      el.classList.toggle('missed', x.answer === 'N' || (x.rating !== undefined && x.rating !== '' && +x.rating < 3));
+      if (isPts(card.Method)) dv.textContent = x.answer === '' ? '—' : x.answer === 'NA' ? 'N/A' : (x.earned || 0).toFixed(1);
       else dv.textContent = x.answer === '' ? '—' : x.answer === 'N' ? (x.type === 'ZTP' ? 'FAIL' : '−' + C.DEDUCTIONS[x.type]) : '0';
     });
     r.sections.forEach(function (sc, i) {
       var st = $('#acc-st-' + i), acc = $('#acc-' + i); if (!st) return;
-      if (card.Method === 'WEIGHTED') { st.textContent = sc.earned.toFixed(1) + ' / ' + sc.possible.toFixed(1); st.style.color = sc.earned < sc.possible ? 'var(--warn)' : 'var(--ok)'; }
+      if (isPts(card.Method)) { st.textContent = sc.earned.toFixed(1) + ' / ' + sc.possible.toFixed(1); st.style.color = sc.earned < sc.possible ? 'var(--warn)' : 'var(--ok)'; }
       else if (sc.ztp) { st.textContent = sc.violations ? sc.violations + ' violated: auto-fail' : 'Clear'; st.style.color = sc.violations ? 'var(--bad)' : 'var(--ok)'; }
       else { st.textContent = sc.deduction ? '−' + sc.deduction + ' pts' : '✓'; st.style.color = sc.deduction ? 'var(--warn)' : 'var(--ok)'; }
       if (acc) acc.classList.toggle('failed', r.ztp && !sc.ztp);
@@ -3732,8 +3836,8 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     box.innerHTML = '<div class="k-label muted">Live score' + (answered < total && answered ? ' (so far)' : '') + '</div><div class="score-big band-pill ' + (bd ? bd.key : '') + '">' + scoreTxt + '</div>' +
       '<div style="margin-top:4px">' + (bd ? sb(bd.label) + ' ' + (answered === total ? (r.passed ? sb('Passed') : sb('Failed')) : '') : '<span class="muted small">Not scored yet</span>') + '</div>' +
       '<div class="score-bar"><span style="width:' + (answered ? Math.max(0, r.score) : 0) + '%;background:' + (r.ztp || r.score < 81 ? 'var(--bad)' : r.score < 87 ? 'var(--warn)' : 'var(--ok)') + '"></span></div>' +
-      r.sections.map(function (sc, i) { var v = card.Method === 'WEIGHTED' ? sc.earned.toFixed(1) + '/' + sc.possible.toFixed(1) : sc.ztp ? (sc.violations ? 'Violated' : 'Clear') : (sc.deduction ? '−' + sc.deduction : '✓');
-        var bad = card.Method === 'WEIGHTED' ? sc.earned < sc.possible : sc.ztp ? sc.violations : sc.deduction; return '<div class="sec-sum"><span>' + (ROMAN[i] || i + 1) + '. ' + esc(sc.title) + '</span><b class="' + (bad ? 'bad' : 'ok') + '">' + v + '</b></div>'; }).join('') +
+      r.sections.map(function (sc, i) { var v = isPts(card.Method) ? sc.earned.toFixed(1) + '/' + sc.possible.toFixed(1) : sc.ztp ? (sc.violations ? 'Violated' : 'Clear') : (sc.deduction ? '−' + sc.deduction : '✓');
+        var bad = isPts(card.Method) ? sc.earned < sc.possible : sc.ztp ? sc.violations : sc.deduction; return '<div class="sec-sum"><span>' + (ROMAN[i] || i + 1) + '. ' + esc(sc.title) + '</span><b class="' + (bad ? 'bad' : 'ok') + '">' + v + '</b></div>'; }).join('') +
       '<div class="sec-sum" style="border:0;margin-top:6px"><span>Answered</span><b>' + answered + ' of ' + total + '</b></div>' +
       '<div class="minibar" style="margin:4px 0 12px"><span style="width:' + (total ? answered / total * 100 : 0) + '%"></span></div>' + scoreButtons(answered === total);
   }
@@ -3767,6 +3871,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     if (k === 'auditDate' && !F.periodTouched && C.isIsoDate(el.value)) { var p = C.periodOf(el.value); F.year = p.year; F.month = p.month; F.week = p.week; $('#af-Year').innerHTML = yearOptsFor(p.year); $('#af-Month').value = p.month; $('#af-Week').value = p.week; }
     saveQaDraft();
   };
+  INP.afSecNote = function (el) { S.form.secNotes = S.form.secNotes || {}; S.form.secNotes[el.dataset.i] = el.value; saveQaDraft(); };
   CHG.afCallout = function (el) { S.form.callout = el.checked; var w = $('#w-callout'); if (w) w.hidden = !el.checked; paintScore(); saveQaDraft(); };
   CHG.afNoAudit = function (el) { S.form.noAudit = el.checked; render(); saveQaDraft(); };
   ACT.restoreQaDraft = function () { var dr = S.form.draftOffer; S.form = Object.assign(blankForm(), dr.form, { draftOffer: null, mode: S.mode, editId: '' }); render(); toast('Draft restored. It is not logged until you click Log audit.', 'warn'); };
@@ -3776,7 +3881,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
 
   function payloadFromForm(F) {
     return { audit: { ScorecardID: F.cardId, AgentID: F.agentId, InteractionID: F.interactionId, InteractionAt: F.interactionAt, AuditDate: F.auditDate, Year: F.year, Month: F.month, Week: F.week,
-      AuditNo: F.auditNo, NoAudit: F.noAudit, NoAuditReason: F.noAuditReason, Callout: F.callout, CalloutReason: F.calloutReason, CallSummary: F.summary, Priority: F.priority, CoachingNotes: F.notes, CorrectionNote: F.correction }, answers: F.noAudit ? {} : F.answers };
+      AuditNo: F.auditNo, NoAudit: F.noAudit, NoAuditReason: F.noAuditReason, Callout: F.callout, CalloutReason: F.calloutReason, TrainingWeek: F.trainingWeek, SectionNotes: F.secNotes || {}, Commitment: F.commitment, CallSummary: F.summary, Priority: F.priority, CoachingNotes: F.notes, CorrectionNote: F.correction }, answers: F.noAudit ? {} : F.answers };
   }
   function showAuditErrors(fields) {
     $$('#page .err').forEach(function (x) { x.hidden = true; }); $$('#page [aria-invalid]').forEach(function (x) { x.removeAttribute('aria-invalid'); });
@@ -3800,6 +3905,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     var errs = {};
     if (!F.cardId) errs.ScorecardID = 'Select a scorecard.'; if (!F.agentId) errs.AgentID = 'Select an agent.';
     if (F.noAudit && F.noAuditReason.trim().length < 3) errs.NoAuditReason = 'Say why there is no audit this week.';
+    if (F.cardId && C.isTraining(cardOf(F.cardId)) && !F.trainingWeek) errs.TrainingWeek = 'Choose the review period (training week).';
     if (F.callout && F.noAudit) errs.Callout = 'A callout documents a call: untick "No audit this week".';
     if (F.callout && String(F.calloutReason || '').trim().length < 5) errs.CalloutReason = 'Say why this call is a callout (at least 5 characters).';
     if (F.editId && C.b(S.settings.CorrectionReasonRequired) && F.correction.trim().length < 5) errs.CorrectionNote = 'Give a reason for this correction (at least 5 characters).';
@@ -3830,7 +3936,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   function startCorrection(id) {
     var a = auditById(id); if (!a) return;
     var p = { cardId: a.ScorecardID, agentId: a.AgentID, interactionId: a.InteractionID, interactionAt: a.InteractionAt, auditDate: a.AuditDate, year: +a.Year, month: +a.Month, week: +a.Week, periodTouched: true,
-      auditNo: a.AuditNo, noAudit: C.b(a.NoAudit), noAuditReason: a.NoAuditReason, callout: C.b(a.Callout), calloutReason: a.CalloutReason || '', summary: a.CallSummary, priority: a.Priority, notes: a.CoachingNotes, answers: {}, open: {}, editId: id, correction: '', mode: S.mode };
+      auditNo: a.AuditNo, noAudit: C.b(a.NoAudit), noAuditReason: a.NoAuditReason, callout: C.b(a.Callout), calloutReason: a.CalloutReason || '', trainingWeek: a.TrainingWeek || '', secNotes: C.json(a.SectionNotes, {}), commitment: a.Commitment || '', summary: a.CallSummary, priority: a.Priority, notes: a.CoachingNotes, answers: {}, open: {}, editId: id, correction: '', mode: S.mode };
     C.arr(a.Results).forEach(function (r) { p.answers[r.c] = r.a; });
     S.form = Object.assign(blankForm(), p);
     while (modalStack.length) closeModal(true);
@@ -3840,20 +3946,21 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   // ================= audit detail =================
   function openAudit(id) {
     var a = auditById(id); if (!a) { toast('Audit ' + id + ' is not available. It may be archived or outside your access.', 'warn'); return; }
-    var card = cardOf(a.ScorecardID), items = C.auditItems(a, card), missed = items.filter(function (x) { return x.answer === 'N'; });
+    var card = cardOf(a.ScorecardID), items = C.auditItems(a, card), missed = items.filter(below);
     var meta = '<dl class="dl">' + dd('Agent', isAgentRole() ? esc(agName(a.AgentID)) : '<a href="#/agents/' + esc(a.AgentID) + '" data-act="goAgent" data-id="' + esc(a.AgentID) + '">' + esc(agName(a.AgentID)) + '</a>') + dd('Campaign', esc(campName(a.CampaignID))) +
       dd('Scorecard', esc((a.ScorecardName || (card || {}).Name || '') + (a.ScorecardVersion ? ' (version ' + a.ScorecardVersion + ')' : ''))) + dd('Team lead', esc(tlName(a.TeamLeadID))) + dd('QA analyst', esc(auditorLabel(a))) +
       dd((card && card.InteractionLabel) || 'Interaction ID', esc(a.InteractionID)) + dd('Interaction date and time', esc(String(a.InteractionAt || '').replace('T', ' '))) + dd('Audit date', esc(fmtDate(a.AuditDate))) +
       dd('Period', esc('Week ' + C.wk(a) + ', ' + MONTH_NAMES[(+a.Month || 1) - 1] + ' ' + a.Year)) + dd('Audit no.', esc(a.AuditNo)) + (a.Source === 'IMPORT' ? dd('Source', 'Imported from the original QA Portal') : '') + dd('Call summary', txt(a.CallSummary), true) + '</dl>';
-    var body = calloutBanner(a) + '<div class="row" style="margin-bottom:12px">' + (C.b(a.NoAudit) ? sb('No audit') : '<span class="score-big band-pill ' + ((C.bandFor(a.Score, C.b(a.ZTP)) || {}).key || '') + '" style="font-size:1.8rem">' + esc(a.Score) + '%</span>' + (C.isCallout(a) ? '<span class="b warn">Callout · score for reference only</span>' : sb(a.Band) + sb(C.b(a.Passed) ? 'Passed' : 'Failed'))) + synTag(a) + '</div>' + meta;
+    var body = calloutBanner(a) + (C.isTraining(a) ? '<div class="note" style="margin-bottom:12px"><b>Trainee scorecard</b> · Review period: training week ' + esc(a.TrainingWeek) + '. Kept in the Training section, never in QA scores.</div>' : '') + '<div class="row" style="margin-bottom:12px">' + (C.b(a.NoAudit) ? sb('No audit') : '<span class="score-big band-pill ' + ((C.bandFor(a.Score, C.b(a.ZTP)) || {}).key || '') + '" style="font-size:1.8rem">' + esc(a.Score) + '%</span>' + (C.isCallout(a) ? '<span class="b warn">Callout · score for reference only</span>' : sb(a.Band) + sb(C.b(a.Passed) ? 'Passed' : 'Failed'))) + synTag(a) + '</div>' + meta;
     if (C.b(a.NoAudit)) body += '<div class="sec"><h3>No audit this week</h3><p>' + esc(a.NoAuditReason) + '</p></div>';
     else if (!items.length) body += '<div class="sec"><div class="note">Item answers are not available for this audit' + (a.Source === 'IMPORT' ? ' (the original QA Portal did not keep them for this entry)' : '') + '. The score is shown as logged.</div></div>';
     else {
-      body += '<div class="sec"><h3>Missed items (' + missed.length + ')</h3>' + (missed.length ? '<ul style="margin:6px 0 0">' + missed.map(function (x) { return '<li><b>' + esc(x.code) + '</b> ' + esc(x.title) + ' <span class="t-sub">' + esc(x.section) + '</span> ' + (x.type ? '<span class="tbadge ' + esc(x.type) + '">' + esc(x.type) + (x.type === 'ZTP' ? '' : ' −' + C.DEDUCTIONS[x.type]) + '</span>' : '<span class="tbadge W">−' + C.n(x.weight).toFixed(1) + ' pts</span>') + '</li>'; }).join('') + '</ul>' : '<p class="muted">None. Every item was met.</p>') + '</div>' +
-        '<div class="sec"><details><summary style="cursor:pointer;font-weight:600">All items (' + items.length + ')</summary><div class="table-wrap" style="margin-top:8px"><table class="t"><thead><tr><th>#</th><th>Item</th><th>Section</th><th>' + (a.Method === 'WEIGHTED' ? 'Weight' : 'Type') + '</th><th>Answer</th><th class="num">' + (a.Method === 'WEIGHTED' ? 'Earned' : 'Deduction') + '</th></tr></thead><tbody>' +
-        items.map(function (x) { var ans = x.answer === 'Y' ? (x.type === 'ZTP' ? 'Clear' : 'Yes') : x.answer === 'N' ? (x.type === 'ZTP' ? 'Violated' : 'No') : x.answer === 'NA' ? 'N/A' : '—';
-          return '<tr' + (x.answer === 'N' ? ' style="background:var(--bad-soft)"' : '') + '><td>' + esc(x.code) + '</td><td>' + esc(x.title) + '</td><td class="t-sub">' + esc(x.section) + '</td><td>' + (x.type ? esc(x.type) : C.n(x.weight).toFixed(1)) + '</td><td>' + ans + '</td><td class="num">' + (a.Method === 'WEIGHTED' ? (x.earned === null ? '—' : x.earned.toFixed(1)) : (x.deduction === 'AUTO-FAIL' ? 'Auto-fail' : x.deduction ? '−' + x.deduction : '0')) + '</td></tr>'; }).join('') + '</tbody></table></div></details></div>';
+      body += '<div class="sec"><h3>' + (a.Method === 'RATING' ? 'Items below full marks' : 'Missed items') + ' (' + missed.length + ')</h3>' + (missed.length ? '<ul style="margin:6px 0 0">' + missed.map(function (x) { return '<li><b>' + esc(x.code) + '</b> ' + esc(x.title) + ' <span class="t-sub">' + esc(x.section) + '</span> ' + (x.type ? '<span class="tbadge ' + esc(x.type) + '">' + esc(x.type) + (x.type === 'ZTP' ? '' : ' −' + C.DEDUCTIONS[x.type]) + '</span>' : '<span class="tbadge W">−' + C.n(x.weight).toFixed(1) + ' pts</span>') + '</li>'; }).join('') + '</ul>' : '<p class="muted">None. Every item was met.</p>') + '</div>' +
+        '<div class="sec"><details><summary style="cursor:pointer;font-weight:600">All items (' + items.length + ')</summary><div class="table-wrap" style="margin-top:8px"><table class="t"><thead><tr><th>#</th><th>Item</th><th>Section</th><th>' + (isPts(a.Method) ? 'Weight' : 'Type') + '</th><th>Answer</th><th class="num">' + (isPts(a.Method) ? 'Earned' : 'Deduction') + '</th></tr></thead><tbody>' +
+        items.map(function (x) { var ans = ansLabel(x);
+          return '<tr' + (x.answer === 'N' ? ' style="background:var(--bad-soft)"' : '') + '><td>' + esc(x.code) + '</td><td>' + esc(x.title) + '</td><td class="t-sub">' + esc(x.section) + '</td><td>' + (x.type ? esc(x.type) : C.n(x.weight).toFixed(1)) + '</td><td>' + ans + '</td><td class="num">' + (isPts(a.Method) ? (x.earned === null ? '—' : x.earned.toFixed(1)) : (x.deduction === 'AUTO-FAIL' ? 'Auto-fail' : x.deduction ? '−' + x.deduction : '0')) + '</td></tr>'; }).join('') + '</tbody></table></div></details></div>';
     }
+    if (C.isTraining(a)) { var sn = C.json(a.SectionNotes, {}), secT = C.json((card || {}).Definition, {}).sections || []; body += '<div class="sec"><h3>Comments</h3><dl class="dl">' + secT.map(function (sc2, i) { return dd(sc2.title, txt(sn[i]), true); }).join('') + dd('Agent\'s commitment', txt(a.Commitment), true) + '</dl></div>'; }
     body += '<div class="sec"><h3>Remarks</h3><dl class="dl">' + dd('Priority level', txt(a.Priority)) + dd('Coaching notes', txt(a.CoachingNotes), true) + (a.CorrectionNote ? dd('Last correction reason', txt(a.CorrectionNote), true) : '') + '</dl></div>';
     if (!isAgentRole()) body += '<div class="sec"><div class="row"><h3 style="margin-right:auto">Change history</h3><button class="btn btn-sm" data-act="loadHistory" data-id="' + esc(id) + '">Load change history</button></div><div id="hist-' + esc(id) + '"></div></div>';
     var foot = '<span class="left">Logged by ' + esc(a.CreatedBy === 'import' ? 'import' : auditorLabel(a)) + ' on ' + esc(fmtTs(a.CreatedAt)) + '. Version ' + esc(a.RecordVersion) + '.</span>' +
@@ -3899,13 +4006,13 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   function logoDataUrl() { var el = $('.brand-mark'); if (!el) return ''; var m = /url\("?(data:image\/[^")]+)"?\)/.exec(getComputedStyle(el).backgroundImage || ''); return m ? m[1] : ''; }
   function printHtml(a, card, items, draft) {
     var f = function (label, val, cls) { return '<div class="pf-f ' + (cls || '') + '"><span>' + esc(label) + '</span><div>' + (val === '' || val === null || val === undefined ? '—' : esc(val)) + '</div></div>'; };
-    var logo = logoDataUrl(), w = a.Method === 'WEIGHTED', missed = items.filter(function (x) { return x.answer === 'N'; });
+    var logo = logoDataUrl(), w = isPts(a.Method), missed = items.filter(below), tr = C.isTraining(a), notes = C.json(a.SectionNotes, {});
     var half = Math.ceil(items.length / 2), cols = [items.slice(0, half), items.slice(half)];
     var itemTable = function (list) { return '<table><thead><tr><th style="width:12%">#</th><th>Item</th><th style="width:18%">Result</th><th style="width:13%;text-align:right">' + (w ? 'Pts' : 'Ded.') + '</th></tr></thead><tbody>' + list.map(function (x) {
-      var ans = x.answer === 'Y' ? (x.type === 'ZTP' ? 'Clear' : 'Yes') : x.answer === 'N' ? (x.type === 'ZTP' ? 'Violated' : 'No') : x.answer === 'NA' ? 'N/A' : '—';
+      var ans = ansLabel(x);
       var pts = w ? (x.earned === null || x.earned === undefined ? '—' : (+x.earned).toFixed(1)) : (x.answer === 'N' ? (x.type === 'ZTP' ? 'FAIL' : '−' + (C.DEDUCTIONS[x.type] || 0)) : '0');
       return '<tr' + (x.answer === 'N' ? ' style="font-weight:600"' : '') + '><td>' + esc(x.code) + '</td><td>' + esc(x.title) + '</td><td>' + ans + '</td><td style="text-align:right">' + pts + '</td></tr>'; }).join('') + '</tbody></table>'; };
-    return '<div class="pf"><div class="pf-head">' + (logo ? '<img src="' + logo + '" alt="">' : '') + '<div><h1>QA Audit' + (draft ? '<span class="pf-draft">NOT LOGGED</span>' : '') + '</h1><div class="pf-org">Alliance Global Solutions</div></div><div class="pf-meta"><b>' + esc(a.AuditID || 'Draft') + '</b><br>Printed ' + esc(fmtDate(todayTz())) + '</div></div>' +
+    return '<div class="pf"><div class="pf-head">' + (logo ? '<img src="' + logo + '" alt="">' : '') + '<div><h1>' + (tr ? 'Trainee Scorecard' : 'QA Audit') + (draft ? '<span class="pf-draft">NOT LOGGED</span>' : '') + '</h1><div class="pf-org">Alliance Global Solutions</div></div><div class="pf-meta"><b>' + esc(a.AuditID || 'Draft') + '</b><br>Printed ' + esc(fmtDate(todayTz())) + '</div></div>' +
       '<div class="pf-grid">' + f('Agent', agName(a.AgentID) + (ag(a.AgentID).EmployeeID ? ' (' + ag(a.AgentID).EmployeeID + ')' : '')) + f('Campaign', campName(a.CampaignID)) + f('Scorecard', a.ScorecardName || (card || {}).Name) +
       f('Team lead', tlName(a.TeamLeadID)) + f('QA analyst', auditorLabel(a)) + f('Audit date', fmtDate(a.AuditDate)) + f((card && card.InteractionLabel) || 'Interaction ID', a.InteractionID) + f('Interaction date and time', String(a.InteractionAt || '').replace('T', ' ')) + f('Period', 'Week ' + C.wk(a) + ', ' + MONTH_NAMES[(+a.Month || 1) - 1] + ' ' + a.Year) + f('Call summary', a.CallSummary, 'pf-wide') + '</div>' +
       (C.isCallout(a) ? '<div class="pf-callout">CALLOUT / FLAGGED CALL: documentation and coaching only, not part of the monthly QA score.' + (a.CalloutReason ? ' Reason: ' + esc(a.CalloutReason) : '') + '</div>' : '') +
@@ -3914,7 +4021,8 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
         '<h2>Missed items (' + missed.length + ')</h2><div>' + (missed.length ? missed.map(function (x) { return esc(x.code + ' ' + x.title); }).join('; ') : 'None') + '</div>' +
         (items.length ? '<h2>All items</h2><div class="pf-grid two">' + cols.map(function (c) { return '<div>' + itemTable(c) + '</div>'; }).join('') + '</div>' : '')) +
       '<h2>Remarks</h2><div class="pf-grid two">' + f('Priority level', a.Priority) + '<div></div>' + f('Coaching notes', a.CoachingNotes, 'pf-wide') + '</div>' +
-      '<div class="pf-sign">' + [['Agent', agName(a.AgentID)], ['QA analyst', auditorLabel(a)]].map(function (p) { return '<div><div class="row"><div><div class="line"></div><div class="lbl">' + esc(p[0]) + ' signature</div></div><div><div class="line"></div><div class="lbl">Date</div></div></div><div style="margin-top:4px;font-size:9pt">' + esc(p[1]) + '</div></div>'; }).join('') + '</div>' +
+      (tr ? '<h2>Comments</h2><div class="pf-grid two">' + (C.json((card || {}).Definition, {}).sections || []).map(function (sc2, i) { return f(sc2.title, notes[i] || '', 'pf-wide'); }).join('') + f('Agent\'s commitment' + (a.TrainingWeek ? ' (training week ' + a.TrainingWeek + ')' : ''), a.Commitment, 'pf-wide') + '</div>' : '') +
+      '<div class="pf-sign">' + (tr ? [['Trainee', agName(a.AgentID)], ['Trainer', auditorLabel(a)]] : [['Agent', agName(a.AgentID)], ['QA analyst', auditorLabel(a)]]).map(function (p) { return '<div><div class="row"><div><div class="line"></div><div class="lbl">' + esc(p[0]) + ' signature</div></div><div><div class="line"></div><div class="lbl">Date</div></div></div><div style="margin-top:4px;font-size:9pt">' + esc(p[1]) + '</div></div>'; }).join('') + '</div>' +
       '<div class="pf-foot"><span>Confidential — employee performance record</span><span>AGS QA Hub' + (a.AuditID ? ', ' + esc(a.AuditID) : '') + '</span></div></div>';
   }
   function preparePrintAudit(a, card, items, draft) {
@@ -3934,7 +4042,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   // ================= audits: list and weekly matrix =================
   var AUDIT_DEFAULTS = { tab: 'list', q: '', scorecardId: '', teamLeadId: '', agentId: '', auditor: '', week: '', band: '', kind: '', sort: 'AuditDate', dir: -1, page: 0 };
   function auditRows(f) {
-    var list = auditsInView(gFilters({ scorecardId: f.scorecardId, teamLeadId: f.teamLeadId, agentId: f.agentId, auditor: f.auditor, week: f.week, band: f.band, kind: f.kind }));
+    var list = auditsInView(gFilters({ scorecardId: f.scorecardId, teamLeadId: f.teamLeadId, agentId: f.agentId, auditor: f.auditor, week: f.week, band: f.band, kind: f.kind, purpose: 'qa' }));
     if (f.q) { var q = f.q.toLowerCase(); list = list.filter(function (a) { return [a.AuditID, agName(a.AgentID), a.InteractionID, a.ScorecardName, auditorLabel(a)].join(' ').toLowerCase().indexOf(q) >= 0; }); }
     return sortRows(list.map(function (a) { return { a: a, AuditDate: a.AuditDate + a.AuditID, agent: agName(a.AgentID), score: C.b(a.NoAudit) ? -1 : C.n(a.Score), card: a.ScorecardName, auditor: auditorLabel(a), week: +a.Week }; }), f);
   }
@@ -4121,15 +4229,50 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   };
 
 
+  // ================= Training: trainee scorecards (Teach Back, Mock Call) =================
+  // Kept apart from QA: never in QA averages, pass rates, weekly targets or coverage. Each scorecard is its own score.
+  PAGES.training = function () {
+    var f = pf('training', { tab: 'summary', teamLeadId: '' }), agentView = isAgentRole();
+    var filt = { campaignId: S.g.campaignId, teamLeadId: f.teamLeadId, agentId: agentView ? S.user.agentId : '' };
+    var sum = C.trainingSummary(S.data, filt), cards = liveCards(S.g.campaignId).filter(function (c) { return C.isTraining(c) && C.b(c.Active); });
+    var list = S.data.audits.filter(C.auditFilter({ campaignId: S.g.campaignId, teamLeadId: f.teamLeadId, agentId: filt.agentId, purpose: 'training' })).sort(function (x, y) { return s2(y.AuditDate) + y.AuditID < s2(x.AuditDate) + x.AuditID ? -1 : 1; });
+    var head = '<div class="page-head"><div><p>' + (agentView ? 'Your trainee scorecards. They are part of your training, not your QA score.' : 'Trainee scorecards: Teach Back and Mock Call, each scored on its own by review period (training week). Kept apart from QA scores, targets and coverage.') + '</p></div><div class="actions">' +
+      (cap('export') && sum.rows.length ? '<button class="btn" data-act="exportTraining">Export CSV</button>' : '') + (cap('logAudits') && cards.length ? '<button class="btn btn-primary" data-act="newTrainee">New trainee scorecard</button>' : '') + '</div></div>';
+    if (!cards.length && !list.length) return head + '<div class="note warn">No trainee scorecards yet' + (S.g.campaignId ? ' for ' + esc(campName(S.g.campaignId)) : '') + '. An Admin adds them by running <b>AGS_addTraineeScorecards</b> in the Apps Script editor (it adds Teach Back and Mock Call to every campaign).</div>';
+    var tabs = '<div class="tabs" role="tablist">' + [['summary', 'Weekly summary'], ['list', 'All trainee scorecards (' + list.length + ')']].map(function (x) { return '<button role="tab" aria-selected="' + (f.tab === x[0]) + '" data-act="trainTab" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
+    var filters = agentView ? '' : '<div class="filters">' + fsel('training', 'teamLeadId', 'Team lead', tlOpts(f.teamLeadId, 'All', S.g.campaignId)) + '</div>';
+    var pc = function (v) { return v === null || v === undefined ? '<span class="muted">—</span>' : '<span class="band-pill ' + bandClass(v) + '">' + v + '%</span>'; };
+    var body;
+    if (f.tab === 'list') {
+      body = list.length ? '<section class="panel"><div class="table-wrap"><table class="t"><thead><tr><th>Date / ID</th>' + (agentView ? '' : '<th>Trainee</th>') + '<th>Scorecard</th><th>Review period</th><th>Score</th><th>Trainer</th></tr></thead><tbody>' +
+        list.map(function (a) { return '<tr class="click" tabindex="0" data-act="openAudit" data-id="' + esc(a.AuditID) + '"><td>' + esc(fmtDate(a.AuditDate)) + '<div class="t-sub">' + esc(a.AuditID) + '</div></td>' + (agentView ? '' : '<td>' + esc(agName(a.AgentID)) + '<div class="t-sub">' + esc(campName(a.CampaignID)) + '</div></td>') + '<td>' + esc(String(a.ScorecardName || '').replace('AST Trainee — ', '')) + '</td><td>Week ' + esc(a.TrainingWeek) + '</td><td>' + scoreCell(a) + '</td><td>' + esc(auditorLabel(a)) + '</td></tr>'; }).join('') + '</tbody></table></div></section>' : emptyState('No trainee scorecards logged yet', '');
+    } else {
+      body = sum.rows.length ? '<section class="panel"><div class="table-wrap"><table class="t train-sum"><thead><tr><th rowspan="2">Trainee</th>' + sum.cards.map(function (cn) { return '<th colspan="' + (sum.weeks.length + 1) + '" class="grp">' + esc(cn.replace('AST Trainee — ', '')) + '</th>'; }).join('') + '</tr><tr>' +
+        sum.cards.map(function () { return sum.weeks.map(function (w) { return '<th class="num">Week ' + w + '</th>'; }).join('') + '<th class="num avg">Average</th>'; }).join('') + '</tr></thead><tbody>' +
+        sum.rows.map(function (r) { return '<tr><td><div class="t-title">' + esc(r.name) + '</div><div class="t-sub">' + esc(campName(r.campaignId)) + '</div></td>' + sum.cards.map(function (cn) { var c = r.cards[cn] || { weeks: {}, avg: null }; return sum.weeks.map(function (w) { return '<td class="num">' + pc(c.weeks[w]) + '</td>'; }).join('') + '<td class="num avg">' + pc(c.avg) + '</td>'; }).join('') + '</tr>'; }).join('') +
+        '</tbody></table></div></section><p class="small muted" style="margin-top:8px">Teach Back and Mock Call are separate scores, never combined. Bands: 100% Excellent · 95% Outstanding · 87% Satisfactory · 81% Needs Improvement · below Poor.</p>'
+        : emptyState('No trainee scores yet', 'Scores appear here as trainee scorecards are logged.');
+    }
+    return head + tabs + filters + body;
+  };
+  function s2(v) { return v === null || v === undefined ? '' : String(v); }
+  ACT.trainTab = function (el) { S.f.training.tab = el.dataset.tab; render(); };
+  ACT.newTrainee = function () { var cs = liveCards(S.g.campaignId).filter(function (c) { return C.isTraining(c) && C.b(c.Active); }); S.form = Object.assign(blankForm(cs.length === 1 ? cs[0].ScorecardID : ''), { mode: S.mode }); go('newaudit'); };
+  ACT.exportTraining = function () {
+    var f = S.f.training, sum = C.trainingSummary(S.data, { campaignId: S.g.campaignId, teamLeadId: f.teamLeadId }), heads = ['Trainee', 'Campaign'];
+    sum.cards.forEach(function (cn) { sum.weeks.forEach(function (w) { heads.push(cn + ' — Week ' + w); }); heads.push(cn + ' — Average'); });
+    downloadCsv('trainee_weekly_summary', heads, sum.rows.map(function (r) { var row = [r.name, campName(r.campaignId)]; sum.cards.forEach(function (cn) { var c = r.cards[cn] || { weeks: {}, avg: null }; sum.weeks.forEach(function (w) { row.push(c.weeks[w] === undefined ? '' : c.weeks[w]); }); row.push(c.avg === null ? '' : c.avg); }); return row; }), { campaignId: S.g.campaignId });
+  };
+
   // ================= QA guide (generated from the scorecards) =================
   PAGES.guide = function () {
     var f = pf('guide', { scorecardId: '' }), cards = liveCards(isAgentRole() ? '' : S.g.campaignId).filter(function (c) { return C.b(c.Active); });
     if (!cards.length) return emptyState('No scorecards yet', 'An Admin adds scorecards in Settings.');
     if (!cards.some(function (c) { return c.ScorecardID === f.scorecardId; })) f.scorecardId = cards[0].ScorecardID;
-    var card = cardOf(f.scorecardId), def = defForCard(card), w = card.Method === 'WEIGHTED';
+    var card = cardOf(f.scorecardId), def = defForCard(card), w = isPts(card.Method);
     var legend = '<section class="panel" style="margin-bottom:16px"><div class="panel-b"><div class="row" style="gap:14px;align-items:flex-start">' +
       '<div><b>Performance bands</b><div class="row" style="margin-top:6px">' + C.BANDS.map(function (b2, i) { return '<span class="band-pill ' + b2.key + '">' + esc(b2.label) + ' ' + (i === 0 ? '100%' : i === C.BANDS.length - 1 ? '≤ ' + (C.BANDS[i - 1].min - 1) + '%' : b2.min + '–' + (C.BANDS[i - 1].min - 1) + '%') + '</span>'; }).join(' · ') + '</div></div>' +
-      '<div><b>Scoring</b><div class="small" style="margin-top:6px">' + (w ? 'Each item is worth its points; an item marked "No" earns nothing. Score = points earned out of 100.' : 'Start at 100%. Major "No": −5. Minor "No": −1. N/A: no deduction. A violated zero-tolerance item makes the whole audit 0%.') + ' Pass mark: ' + esc(card.PassMark) + '%. Weekly target: ' + esc(card.WeeklyTarget) + ' audits per agent.</div></div></div></div></section>';
+      '<div><b>Scoring</b><div class="small" style="margin-top:6px">' + (card.Method === 'RATING' ? 'Each item is rated 1–5 (pass/fail items: 5 or 0) and earns rating ÷ 5 × its points. Score = points earned out of 100.' : w ? 'Each item is worth its points; an item marked "No" earns nothing. Score = points earned out of 100.' : 'Start at 100%. Major "No": −5. Minor "No": −1. N/A: no deduction. A violated zero-tolerance item makes the whole audit 0%.') + ' Pass mark: ' + esc(card.PassMark) + '%. Weekly target: ' + esc(card.WeeklyTarget) + ' audits per agent.</div></div></div></div></section>';
     var secs = def.sections.map(function (sc, i) {
       return '<section class="panel" style="margin-bottom:12px"><div class="panel-h"><h2>' + (ROMAN[i] || i + 1) + '. ' + esc(sc.title) + '</h2></div>' + sc.items.map(function (it) {
         return '<div class="guide-item"><div class="code">' + esc(it.code) + '</div><div><b>' + esc(it.title) + '</b> ' + (w ? '<span class="tbadge W">' + C.n(it.weight).toFixed(1) + ' pts</span>' : '<span class="tbadge ' + esc(it.type) + '">' + esc(it.type) + '</span>') + '<div class="small" style="margin-top:3px">' + esc(it.definition || it.detail || '') + '</div></div>' +
@@ -4234,7 +4377,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   // ---------- scorecard editor ----------
   ACT.editScorecard = function (el) {
     var c = el.dataset.id ? cardOf(el.dataset.id) : null;
-    S.scEdit = { rec: c, f: c ? { CampaignID: c.CampaignID, Name: c.Name, Channel: c.Channel, Method: c.Method, PassMark: c.PassMark, WeeklyTarget: c.WeeklyTarget, InteractionLabel: c.InteractionLabel, Active: C.b(c.Active) } : { CampaignID: S.g.campaignId, Name: '', Channel: 'Call', Method: 'DEDUCTION', PassMark: '87', WeeklyTarget: '3', InteractionLabel: 'CTM phone', Active: true },
+    S.scEdit = { rec: c, f: c ? { CampaignID: c.CampaignID, Name: c.Name, Channel: c.Channel, Method: c.Method, PassMark: c.PassMark, WeeklyTarget: c.WeeklyTarget, InteractionLabel: c.InteractionLabel, Active: C.b(c.Active), Purpose: c.Purpose || 'QA' } : { Purpose: 'QA', CampaignID: S.g.campaignId, Name: '', Channel: 'Call', Method: 'DEDUCTION', PassMark: '87', WeeklyTarget: '3', InteractionLabel: 'CTM phone', Active: true },
       def: c ? C.clone(defForCard(c)) : { sections: [{ title: 'Section 1', items: [{ code: '01', title: '', type: 'Major' }] }] }, open: {} };
     var used = c && S.data.audits.some(function (a) { return a.ScorecardID === c.ScorecardID; });
     var m = openModal({ title: c ? 'Edit scorecard' : 'New scorecard', sub: c ? esc(c.Name + ', version ' + c.Version) : '', size: 'xl', sticky: true, body: '<div id="sc-top"></div><div id="sc-body"></div>',
@@ -4248,7 +4391,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
     };
   };
   function scRender(m) {
-    var E = S.scEdit, w = E.f.Method === 'WEIGHTED', f = E.f;
+    var E = S.scEdit, w = isPts(E.f.Method), f = E.f;
     var top = '<div class="fgrid three" style="margin-bottom:14px">' +
       '<div><label class="lbl req" for="sc-Name">Name</label><input id="sc-Name" class="input" data-scf="Name" value="' + esc(f.Name) + '" maxlength="100"></div>' +
       '<div><label class="lbl req" for="sc-Camp">Campaign</label><select id="sc-Camp" class="input" data-scf="CampaignID">' + campOpts(f.CampaignID, 'Select') + '</select></div>' +
@@ -4257,6 +4400,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
       '<div><label class="lbl" for="sc-P">Pass mark (%)</label><input id="sc-P" class="input" type="number" data-scf="PassMark" value="' + esc(f.PassMark) + '"></div>' +
       '<div><label class="lbl" for="sc-T">Weekly target per agent</label><input id="sc-T" class="input" type="number" data-scf="WeeklyTarget" value="' + esc(f.WeeklyTarget) + '"></div>' +
       '<div><label class="lbl" for="sc-L">Interaction ID label</label><input id="sc-L" class="input" data-scf="InteractionLabel" value="' + esc(f.InteractionLabel) + '" maxlength="40"></div>' +
+      '<div><label class="lbl" for="sc-Pu">Use</label><select id="sc-Pu" class="input" data-scf="Purpose">' + opts(C.PURPOSES.map(function (x) { return [x, C.PURPOSE_LABELS[x]]; }), f.Purpose || 'QA') + '</select><div class="hint">Training: trainee scorecards, kept out of QA scores and targets.</div></div>' +
       '<div><span class="lbl">Availability</span><label class="check"><input type="checkbox" data-scf="Active"' + (f.Active ? ' checked' : '') + '> Active (QA analysts can use it)</label></div></div>';
     var secs = E.def.sections.map(function (sc, si) {
       return '<div class="sc-edit-sec"><div class="row"><b>' + (ROMAN[si] || si + 1) + '.</b><label class="sr-only" for="sct-' + si + '">Section title</label><input id="sct-' + si + '" class="input" style="flex:1" data-scp="s.' + si + '.title" value="' + esc(sc.title) + '" placeholder="Section title">' +
@@ -4265,7 +4409,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
         sc.items.map(function (it, ii) {
           var p = 's.' + si + '.i.' + ii + '.';
           return '<div class="sc-edit-item"><input class="input input-sm" aria-label="Item number" data-scp="' + p + 'code" value="' + esc(it.code) + '" placeholder="#"><input class="input input-sm" aria-label="Item title" data-scp="' + p + 'title" value="' + esc(it.title) + '" placeholder="Item title"><input class="input input-sm" aria-label="Short description" data-scp="' + p + 'detail" value="' + esc(it.detail || '') + '" placeholder="Short description">' +
-            (w ? '<input class="input input-sm" type="number" step="0.1" aria-label="Weight" data-scp="' + p + 'weight" value="' + esc(it.weight === undefined ? '' : it.weight) + '" placeholder="Points">' : '<select class="input input-sm" aria-label="Type" data-scp="' + p + 'type">' + opts(C.ITEM_TYPES, it.type) + '</select>') +
+            (w ? '<span class="row" style="gap:4px;flex-wrap:nowrap"><input class="input input-sm" type="number" step="0.1" aria-label="Weight" data-scp="' + p + 'weight" value="' + esc(it.weight === undefined ? '' : it.weight) + '" placeholder="Points">' + (E.f.Method === 'RATING' ? '<label class="check small" title="Pass / fail item: rated 5 or 0"><input type="checkbox" data-scp="' + p + 'scale"' + (it.scale === 'pass' ? ' checked' : '') + '> 5/0</label>' : '') + '</span>' : '<select class="input input-sm" aria-label="Type" data-scp="' + p + 'type">' + opts(C.ITEM_TYPES, it.type) + '</select>') +
             '<span class="row" style="gap:2px;flex-wrap:nowrap"><button class="btn btn-sm btn-ghost" data-act="scGuide" data-s="' + si + '" data-i="' + ii + '">Guide</button><button class="btn btn-sm btn-ghost" data-act="scDelItem" data-s="' + si + '" data-i="' + ii + '" aria-label="Remove item">✕</button></span></div>' +
             (E.open[si + '.' + ii] ? '<div class="fgrid three" style="margin:6px 0 8px 76px"><div><label class="lbl">Definition</label><textarea class="input" data-scp="' + p + 'definition">' + esc(it.definition || '') + '</textarea></div><div><label class="lbl">Meets expectation (one per line)</label><textarea class="input" data-scpl="' + p + 'meets">' + esc((it.meets || []).join('\n')) + '</textarea></div><div><label class="lbl">Does not meet (one per line)</label><textarea class="input" data-scpl="' + p + 'notMeets">' + esc((it.notMeets || []).join('\n')) + '</textarea></div></div>' : '');
         }).join('') + '<button class="btn btn-sm" style="margin-top:8px" data-act="scAddItem" data-s="' + si + '">Add item</button></div>';
@@ -4275,10 +4419,10 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   }
   function scTotal(m) {
     var E = S.scEdit, items = C.defItems(E.def).length, el = $('#sc-total', m); if (!el) return;
-    if (E.f.Method === 'WEIGHTED') { var t = C.round(C.defItems(E.def).reduce(function (x, y) { return x + (C.n(y.item.weight) || 0); }, 0), 2); el.innerHTML = items + ' items. Weights total <b style="color:' + (Math.abs(t - 100) < 0.05 ? 'var(--ok)' : 'var(--bad)') + '">' + t + '</b> of 100.'; }
+    if (isPts(E.f.Method)) { var t = C.round(C.defItems(E.def).reduce(function (x, y) { return x + (C.n(y.item.weight) || 0); }, 0), 2); el.innerHTML = items + ' items. Weights total <b style="color:' + (Math.abs(t - 100) < 0.05 ? 'var(--ok)' : 'var(--bad)') + '">' + t + '</b> of 100.'; }
     else el.textContent = items + ' items.';
   }
-  function scSet(path, val) { var p = path.split('.'), sec = S.scEdit.def.sections[+p[1]]; if (p[2] === 'title' || p[2] === 'ztp') { sec[p[2]] = val; return; } var it = sec.items[+p[3]]; it[p[4]] = p[4] === 'weight' ? (val === '' ? '' : C.n(val)) : val; }
+  function scSet(path, val) { var p = path.split('.'), sec = S.scEdit.def.sections[+p[1]]; if (p[2] === 'title' || p[2] === 'ztp') { sec[p[2]] = val; return; } var it = sec.items[+p[3]]; it[p[4]] = p[4] === 'weight' ? (val === '' ? '' : C.n(val)) : p[4] === 'scale' ? (val ? 'pass' : '') : val; }
   document.addEventListener('input', function (e) {
     var t = e.target; if (!S.scEdit || !t.closest || !t.closest('#sc-body')) return; var m = t.closest('.modal-backdrop');
     if (t.dataset.scp) { scSet(t.dataset.scp, t.type === 'checkbox' ? t.checked : t.value); scTotal(m); }
@@ -4287,7 +4431,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = MemoryRe
   });
   document.addEventListener('change', function (e) {
     var t = e.target; if (!S.scEdit || !t.closest || !t.closest('#sc-body')) return; var m = t.closest('.modal-backdrop');
-    if (t.dataset.scf) { S.scEdit.f[t.dataset.scf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.scf === 'Method') { C.defItems(S.scEdit.def).forEach(function (x) { if (t.value === 'WEIGHTED') { delete x.item.type; if (x.item.weight === undefined) x.item.weight = ''; } else { delete x.item.weight; x.item.type = x.item.type || 'Major'; } }); scRender(m); } }
+    if (t.dataset.scf) { S.scEdit.f[t.dataset.scf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.scf === 'Method') { C.defItems(S.scEdit.def).forEach(function (x) { if (t.value === 'WEIGHTED' || t.value === 'RATING') { delete x.item.type; if (x.item.weight === undefined) x.item.weight = ''; } else { delete x.item.weight; x.item.type = x.item.type || 'Major'; } }); scRender(m); } }
     if (t.dataset.scp && t.type === 'checkbox') scSet(t.dataset.scp, t.checked);
     if (t.dataset.scp && t.tagName === 'SELECT') scSet(t.dataset.scp, t.value);
   });
